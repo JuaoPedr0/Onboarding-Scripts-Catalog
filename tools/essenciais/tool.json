@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schema/tool.schema.json",
+  "slug": "essenciais",
+  "titulo": "Essenciais / Baseline",
+  "categoria": "Baseline",
+  "ordem": 30,
+  "ativo": true,
+  "plataformas": {
+    "windows": {
+      "arquivo": "windows.ps1",
+      "descricao": "Baseline de estação: instala pacotes padrão via winget (7-Zip, Chrome, Notepad++, AnyDesk), ajusta o fuso e, opcionalmente, habilita o RDP."
+    },
+    "linux": {
+      "arquivo": "linux.sh",
+      "descricao": "Baseline de servidor: instala utilitários padrão (curl, wget, vim, htop, chrony…), define o fuso America/Sao_Paulo e habilita a sincronização de horário."
+    }
+  },
+  "parametros": [
+    {
+      "nome": "pacotes",
+      "tipo": "lista",
+      "obrigatorio": false,
+      "regex": "^[A-Za-z0-9.+_-]{1,128}$",
+      "var": {
+        "windows": "Pacotes",
+        "linux": "PACOTES_CSV"
+      },
+      "porPlataforma": {
+        "windows": {
+          "descricao": "IDs do winget a instalar, separados por vírgula. Substitui a lista padrão",
+          "padrao": [
+            "7zip.7zip",
+            "Google.Chrome",
+            "Notepad++.Notepad++",
+            "AnyDeskSoftwareGmbH.AnyDesk"
+          ]
+        },
+        "linux": {
+          "descricao": "Pacotes a instalar (apt/dnf), separados por vírgula. Substitui a lista padrão",
+          "padrao": [
+            "curl",
+            "wget",
+            "vim",
+            "htop",
+            "net-tools",
+            "chrony",
+            "unzip",
+            "ca-certificates"
+          ]
+        }
+      }
+    },
+    {
+      "nome": "habilitar_rdp",
+      "tipo": "bool",
+      "obrigatorio": false,
+      "padrao": false,
+      "descricao": "Habilita a Área de Trabalho Remota e libera no firewall",
+      "var": {
+        "windows": "HabilitarRDP"
+      }
+    },
+    {
+      "nome": "timezone",
+      "tipo": "string",
+      "obrigatorio": false,
+      "padrao": "America/Sao_Paulo",
+      "regex": "^[A-Za-z0-9_+/-]{1,64}$",
+      "descricao": "Fuso horário aplicado com timedatectl",
+      "var": {
+        "linux": "TIMEZONE"
+      }
+    }
+  ]
+}

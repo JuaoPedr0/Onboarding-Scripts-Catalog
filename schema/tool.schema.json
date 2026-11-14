@@ -1,0 +1,232 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Ferramenta de onboarding (tool.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "slug",
+    "titulo",
+    "categoria",
+    "ordem",
+    "ativo",
+    "plataformas",
+    "parametros"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,31}$",
+      "description": "Valor de ?script= na URL. Igual ao nome da pasta."
+    },
+    "titulo": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "categoria": {
+      "type": "string",
+      "enum": [
+        "Monitoramento",
+        "Segurança",
+        "Baseline"
+      ]
+    },
+    "ordem": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ativo": {
+      "type": "boolean",
+      "description": "false tira a ferramenta do catalogo sem apagar os arquivos."
+    },
+    "plataformas": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "windows": {
+          "$ref": "#/definitions/plataforma"
+        },
+        "linux": {
+          "$ref": "#/definitions/plataforma"
+        }
+      }
+    },
+    "parametros": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/parametro"
+      }
+    }
+  },
+  "definitions": {
+    "plataforma": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "arquivo",
+        "descricao"
+      ],
+      "properties": {
+        "arquivo": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+\\.(ps1|sh)$"
+        },
+        "descricao": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    "campos": {
+      "type": "object",
+      "properties": {
+        "padrao": {
+          "type": [
+            "string",
+            "integer",
+            "boolean",
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "regex": {
+          "type": "string"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "descricao": {
+          "type": "string"
+        },
+        "exemplo": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "parametro": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nome",
+        "tipo",
+        "obrigatorio",
+        "var"
+      ],
+      "properties": {
+        "nome": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "description": "Nome na query string."
+        },
+        "tipo": {
+          "type": "string",
+          "enum": [
+            "string",
+            "host",
+            "int",
+            "bool",
+            "enum",
+            "lista"
+          ]
+        },
+        "obrigatorio": {
+          "type": "boolean"
+        },
+        "padrao": {
+          "type": [
+            "string",
+            "integer",
+            "boolean",
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "regex": {
+          "type": "string"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,39}$"
+          }
+        },
+        "valores": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "valor"
+            ],
+            "properties": {
+              "valor": {
+                "type": "string"
+              },
+              "descricao": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "descricao": {
+          "type": "string"
+        },
+        "exemplo": {
+          "type": "string"
+        },
+        "var": {
+          "type": "object",
+          "description": "Variavel do script que recebe o valor, por SO. O parametro so existe nos SOs listados aqui.",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "windows": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+            },
+            "linux": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$"
+            }
+          }
+        },
+        "porPlataforma": {
+          "type": "object",
+          "description": "Campos que diferem entre os SOs (padrao, regex, min, max, descricao, exemplo).",
+          "additionalProperties": false,
+          "properties": {
+            "windows": {
+              "$ref": "#/definitions/campos"
+            },
+            "linux": {
+              "$ref": "#/definitions/campos"
+            }
+          }
+        }
+      }
+    }
+  }
+}

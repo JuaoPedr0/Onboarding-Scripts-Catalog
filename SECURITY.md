@@ -1,0 +1,24 @@
+# Seguranca
+
+Estes scripts sao executados como Administrador/root nos hosts. Trate cada
+mudanca como mudanca de producao.
+
+## O que nunca entra neste repositorio
+
+- Senhas, tokens, chaves, certificados.
+- IPs privados, hostnames e dominios internos. Em exemplos use
+  `<PLACEHOLDER>`, `*.exemplo.local` ou a faixa de documentacao `192.0.2.0/24`.
+- Qualquer valor especifico do ambiente: ele chega por parametro na hora da execucao.
+
+O CI (`npm run check`) recusa IPs privados, dominios internos e formatos comuns de token.
+
+## Cadeia de entrega
+
+1. Mudanca so entra na `main` por pull request, com CI verde.
+2. So uma tag `vX.Y.Z` vira release, e so se a tag estiver na `main`.
+3. O servidor de onboarding serve a ultima release e confere o SHA-256 de
+   cada script contra o `catalog.json` da mesma tag.
+
+## Reportar um problema
+
+Abra um Security Advisory privado no GitHub (aba Security) em vez de uma issue publica.

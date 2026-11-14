@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  catalogo:
+    name: Catalogo, schema e testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: tool.json valido e catalog.json em dia
+        run: npm run check
+      - name: Testes do motor de renderizacao
+        run: npm test
+
+  bash:
+    name: Bash (ShellCheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sintaxe
+        run: for f in tools/*/*.sh; do bash -n "$f"; done
+      - name: ShellCheck (erros bloqueiam)
+        run: shellcheck --severity=error tools/*/*.sh
+      - name: ShellCheck (avisos, informativo)
+        if: always()
+        run: shellcheck --severity=warning --format=gcc tools/*/*.sh || true
+
+  powershell:
+    name: PowerShell (sintaxe, wrapper, PSScriptAnalyzer)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sintaxe e wrapper (PowerShell 7)
+        shell: pwsh
+        run: ./tests/ps-check.ps1
+      - name: Sintaxe e wrapper (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/ps-check.ps1
+      - name: PSScriptAnalyzer (erros bloqueiam)
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -Scope CurrentUser
+          $r = Invoke-ScriptAnalyzer -Path tools -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
+          $r | Where-Object Severity -eq 'Warning' | Format-Table ScriptName, Line, RuleName -AutoSize
+          $erros = @($r | Where-Object { $_.Severity -in 'Error', 'ParseError' })
+          $erros | Format-Table ScriptName, Line, RuleName, Message -AutoSize -Wrap
+          if ($erros.Count) { exit 1 }

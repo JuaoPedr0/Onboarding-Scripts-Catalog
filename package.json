@@ -1,0 +1,14 @@
+{
+  "name": "onboarding-scripts",
+  "private": true,
+  "description": "Scripts de onboarding de hosts (Zabbix, Wazuh, baseline) e catalogo consumido pelo n8n",
+  "scripts": {
+    "build": "node scripts/build-catalog.js",
+    "check": "node scripts/build-catalog.js --check",
+    "test": "node --test tests/render.test.js",
+    "render": "node scripts/render.js"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  }
+}
