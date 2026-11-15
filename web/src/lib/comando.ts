@@ -18,7 +18,7 @@ export interface Campo {
 
 export interface Trecho {
   texto: string
-  tipo: 'shell' | 'url' | 'chave' | 'valor' | 'falta' | 'invalido'
+  tipo: 'shell' | 'url' | 'chave' | 'valor' | 'falta' | 'invalido' | 'segredo'
   parametro?: string
 }
 
@@ -39,6 +39,8 @@ function explicar(p: Parametro): string {
         : 'Use um número inteiro'
     case 'lista':
       return 'Um dos itens tem caracteres não aceitos'
+    case 'secret':
+      return 'Use até 512 caracteres, sem quebras de linha'
     case 'enum':
       return `Escolha ${(p.valores || []).map((v) => v.valor).join(' ou ')}`
     default:
@@ -62,6 +64,8 @@ export function avaliar(def: Parametro, valor: Valor | undefined): Campo {
   const r = validar(def, bruto)
   if ('erro' in r) return { def, estado: 'invalido', erro: explicar(def) }
   const texto = Array.isArray(r.valor) ? r.valor.join(',') : String(r.valor)
+  // Segredo: valido, mas o valor nunca sai deste objeto pela URL.
+  if (def.tipo === 'secret') return { def, estado: 'ok' }
   // Igual ao padrao do script: nao precisa ir na URL.
   if (texto === padraoComoTexto(def)) return { def, estado: 'padrao' }
   return { def, estado: 'ok', texto }
@@ -80,15 +84,30 @@ export interface Comando {
   invalidos: Campo[]
   obrigatorios: number
   obrigatoriosOk: number
+  /** Segredos preenchidos (nome -> valor). Viajam por credencial temporaria, nunca na URL. */
+  segredos: Record<string, string>
 }
+
+/** Marca no lugar da referencia, trocada na hora de copiar. */
+export const MARCA_CRED = '<gerada ao copiar>'
+
+/** Comando final, com a referencia da credencial temporaria no lugar da marca. */
+export const comReferencia = (c: Comando, ref: string) => c.texto.replace(MARCA_CRED, ref)
 
 export function montarComando(item: Item, base: string, valores: Valores): Comando {
   const campos = item.parametros.map((p) => avaliar(p, valores[p.nome]))
   const variante = item.padrao ? '' : `&variante=${item.variante}`
   const url: Trecho[] = [{ texto: `${base}?script=${item.slug}&os=${item.os}${variante}`, tipo: 'url' }]
 
+  const segredos: Record<string, string> = {}
   for (const c of campos) {
     const p = c.def
+    if (p.tipo === 'secret') {
+      const v = valores[p.nome]
+      if (c.estado === 'ok' && typeof v === 'string') segredos[p.nome] = v
+      else if (c.estado === 'invalido') url.push({ texto: `<${p.nome.toUpperCase()}>`, tipo: 'invalido', parametro: p.nome })
+      continue
+    }
     if (c.estado === 'ok') {
       url.push({ texto: `&${p.nome}=`, tipo: 'chave', parametro: p.nome })
       url.push({ texto: p.tipo === 'lista' ? encLista(c.texto!) : enc(c.texto!), tipo: 'valor', parametro: p.nome })
@@ -99,6 +118,11 @@ export function montarComando(item: Item, base: string, valores: Valores): Coman
       url.push({ texto: `&${p.nome}=`, tipo: 'chave', parametro: p.nome })
       url.push({ texto: `<${p.nome.toUpperCase()}>`, tipo: 'falta', parametro: p.nome })
     }
+  }
+
+  if (Object.keys(segredos).length) {
+    url.push({ texto: '&cred=', tipo: 'chave' })
+    url.push({ texto: MARCA_CRED, tipo: 'segredo' })
   }
 
   const [antes, depois] =
@@ -115,5 +139,6 @@ export function montarComando(item: Item, base: string, valores: Valores): Coman
     invalidos: campos.filter((c) => c.estado === 'invalido'),
     obrigatorios: obrig.length,
     obrigatoriosOk: obrig.filter((c) => c.estado === 'ok' || c.estado === 'padrao').length,
+    segredos,
   }
 }

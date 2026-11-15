@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react'
+import { CircleAlert, CircleCheck, KeyRound, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import type { Comando } from '@/lib/comando'
+import { comReferencia, type Comando } from '@/lib/comando'
 import { SHELL, type Sistema } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { IconeCopiar } from './icones'
@@ -11,10 +11,24 @@ import { IconeCopiar } from './icones'
 const lista = (nomes: string[]) =>
   nomes.length <= 1 ? nomes.join('') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`
 
-// Copia o comando e avisa o resultado. Com campo invalido nao copia;
-// com obrigatorio vazio copia, mas diz o que falta trocar.
-export function useCopiar(comando: Comando, os: Sistema) {
+interface Deposito {
+  /** Webhook que guarda os segredos; vazio = recurso desligado nesta pagina. */
+  url: string
+  script: string
+  variante: string
+  /** Chamado depois de copiar, para limpar os campos de segredo. */
+  aoUsar: () => void
+}
+
+// Copia o comando e avisa o resultado. Com campo invalido nao copia; com
+// obrigatorio vazio copia, mas diz o que falta trocar.
+//
+// Segredos nao entram no comando: sao enviados por POST ao servidor de
+// onboarding, que devolve uma referencia de uso unico e vida curta. So a
+// referencia vai para a area de transferencia.
+export function useCopiar(comando: Comando, os: Sistema, deposito: Deposito) {
   const [copiado, setCopiado] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
   const relogio = useRef<number>(undefined)
   useEffect(() => () => clearTimeout(relogio.current), [])
 
@@ -25,8 +39,37 @@ export function useCopiar(comando: Comando, os: Sistema) {
       })
       return
     }
+    let texto = comando.texto
+    let validade = 0
+    const nomes = Object.keys(comando.segredos)
+    if (nomes.length) {
+      if (!deposito.url) {
+        toast.error('Envio de segredos não configurado nesta página', { description: 'Informe a senha direto na chamada do script.' })
+        return
+      }
+      setOcupado(true)
+      try {
+        const resp = await fetch(deposito.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script: deposito.script, os, variante: deposito.variante, segredos: comando.segredos }),
+        })
+        const dados = await resp.json().catch(() => null)
+        if (!resp.ok || !dados?.ok || typeof dados.ref !== 'string') {
+          toast.error('O servidor não aceitou a credencial', { description: dados?.erro ?? `Resposta ${resp.status}. Tente de novo em instantes.` })
+          return
+        }
+        texto = comReferencia(comando, dados.ref)
+        validade = Math.round((Number(dados.expira_em_segundos) || 0) / 60)
+      } catch {
+        toast.error('Sem contato com o servidor de onboarding', { description: 'A credencial temporária só pode ser criada de dentro da rede interna.' })
+        return
+      } finally {
+        setOcupado(false)
+      }
+    }
     try {
-      await navigator.clipboard.writeText(comando.texto)
+      await navigator.clipboard.writeText(texto)
     } catch {
       toast.error('O navegador bloqueou a cópia', { description: 'Selecione o comando e copie com Ctrl+C.' })
       return
@@ -34,16 +77,22 @@ export function useCopiar(comando: Comando, os: Sistema) {
     setCopiado(true)
     clearTimeout(relogio.current)
     relogio.current = window.setTimeout(() => setCopiado(false), 1800)
-    if (comando.faltando.length) {
+    if (nomes.length) {
+      deposito.aoUsar()
+      toast.success('Comando copiado com credencial temporária', {
+        description: `Vale para uma execução${validade ? `, nos próximos ${validade} minutos` : ''}. ${nomes.length === 1 ? 'O campo de senha foi limpo' : 'Os campos de senha foram limpos'}.`,
+        duration: 8000,
+      })
+    } else if (comando.faltando.length) {
       toast.warning('Comando copiado com campos por preencher', {
         description: `Troque ${lista(comando.faltando.map((c) => `<${c.def.nome.toUpperCase()}>`))} antes de executar.`,
       })
     } else {
       toast.success('Comando copiado', { description: `Cole no ${SHELL[os]}.` })
     }
-  }, [comando, os])
+  }, [comando, os, deposito])
 
-  return { copiado, copiar }
+  return { copiado, ocupado, copiar }
 }
 
 export function Situacao({ comando, curta }: { comando: Comando; curta?: boolean }) {
@@ -130,6 +179,14 @@ export function Terminal({ comando, os, host, copiado, onCopiar }: Props) {
                 >
                   {t.texto}
                 </button>
+              )
+            }
+            if (t.tipo === 'segredo') {
+              return (
+                <span key={i} className="inline-flex items-center gap-1 rounded-sm bg-white/10 px-1 text-term-muted" title="A senha não entra no comando: vira uma referência de uso único na hora de copiar">
+                  <KeyRound className="size-3" />
+                  referência gerada ao copiar
+                </span>
               )
             }
             return (

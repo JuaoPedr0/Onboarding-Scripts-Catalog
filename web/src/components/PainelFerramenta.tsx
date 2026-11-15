@@ -33,7 +33,17 @@ export function PainelFerramenta({ config, ferramenta, os, variante, onOs, onVar
   const variantes = ferramenta.itens[os] ?? []
   const item = variantes.find((v) => v.variante === variante) ?? variantes[0]
   const comando = useMemo(() => montarComando(item, config.base, valores), [item, config.base, valores])
-  const { copiado, copiar } = useCopiar(comando, os)
+  // Depois de copiar, os segredos saem da memoria da pagina.
+  const deposito = useMemo(
+    () => ({
+      url: config.credencial,
+      script: item.slug,
+      variante: item.variante,
+      aoUsar: () => onValores(Object.fromEntries(Object.entries(valores).filter(([nome]) => item.parametros.find((p) => p.nome === nome)?.tipo !== 'secret'))),
+    }),
+    [config.credencial, item, valores, onValores],
+  )
+  const { copiado, copiar } = useCopiar(comando, os, deposito)
 
   const obrigatorios = comando.campos.filter((c) => c.def.obrigatorio)
   const opcionais = comando.campos.filter((c) => !c.def.obrigatorio)

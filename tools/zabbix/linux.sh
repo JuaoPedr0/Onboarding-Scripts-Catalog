@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# @onboarding:begin
+# {
+#   "schemaVersion": 1,
+#   "parameters": [
+#     { "name": "zabbix_server", "variable": "ZABBIX_SERVER", "type": "host", "required": true, "description": "Endereço do servidor ou proxy Zabbix (SERVER e SERVERACTIVE)", "example": "zabbix.exemplo.local" },
+#     { "name": "metadata", "variable": "ZABBIX_METADATA", "type": "string", "required": true, "description": "HostMetadata usado nas regras de autorregistro", "example": "Linux", "regex": "^[A-Za-z0-9 ._:,;=-]{1,255}$" },
+#     { "name": "hostname", "variable": "ZABBIX_HOSTNAME", "type": "string", "required": false, "description": "Nome do host no Zabbix. Vazio usa o hostname da máquina", "example": "srv-app01", "regex": "^[A-Za-z0-9._-]{1,128}$" },
+#     { "name": "version", "variable": "ZABBIX_VERSION", "type": "string", "required": false, "default": "7.4", "description": "Branch do repositório oficial do Zabbix (ex.: 7.4)", "regex": "^\\d+\\.\\d+$" }
+#   ]
+# }
+# @onboarding:end
+
 #
 # Instalacao nao-interativa do Zabbix Agent 2 no Linux (servido via webhook n8n).
 # Uso: curl -fsSL '<url>?script=zabbix&os=linux&zabbix_server=<IP>&metadata=<VALOR>' | sudo bash

@@ -61,6 +61,13 @@ export function validar(def: Definicao, bruto: string | string[]): Resultado {
       if (FALSO.includes(v)) return { valor: false }
       return { erro: `'${def.nome}' deve ser true ou false: ${curto(v)}` }
     }
+    case 'secret': {
+      // Nunca devolve o valor na mensagem de erro.
+      const v = String(unico(bruto))
+      return v.length >= 1 && v.length <= 512 && !/[\u0000-\u001f\u007f]/.test(v)
+        ? { valor: v }
+        : { erro: `'${def.nome}' invalido: use ate 512 caracteres, sem quebras de linha` }
+    }
     case 'lista': {
       const itens = [
         ...new Set(

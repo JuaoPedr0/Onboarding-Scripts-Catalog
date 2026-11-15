@@ -39,13 +39,29 @@ function Assert-Eco([string]$Nome, $Saida, [string]$Esperado) {
 }
 
 $s = Get-Eco
-Assert-Eco 'defaults do script' (& ([ScriptBlock]::Create($s))) 'padrao|0|1|False'
+Assert-Eco 'defaults do script' (& ([ScriptBlock]::Create($s))) 'padrao|0|1|False|'
 
 $s = Get-Eco "texto=it's" 'lista=a,b' 'flag=1'
-Assert-Eco 'valores da URL' (& ([ScriptBlock]::Create($s))) "it's|2|1|True"
+Assert-Eco 'valores da URL' (& ([ScriptBlock]::Create($s))) "it's|2|1|True|"
 
 $s = Get-Eco 'texto=url'
-Assert-Eco 'parametro extra na chamada' (& ([ScriptBlock]::Create($s)) -Porta 9 -Flag) 'url|0|9|True'
+Assert-Eco 'parametro extra na chamada' (& ([ScriptBlock]::Create($s)) -Porta 9 -Flag) 'url|0|9|True|'
+
+# 3) Credencial temporaria: o script troca a referencia pela senha, uma unica vez.
+$porta = 39871
+$ref = 'b' * 48
+$servidor = Start-Process node -ArgumentList @((Join-Path $PSScriptRoot 'fixtures/servidor-cred.js'), $porta, $ref, 'senha=S3nha-do-teste') -PassThru -WindowStyle Hidden
+Start-Sleep -Seconds 2
+try {
+    $s = Get-Eco 'texto=url' "cred=$ref" "--resgate=http://127.0.0.1:$porta/resgatar"
+    if ($s -match 'S3nha-do-teste') { $falhas++; Write-Host '[FALHA] segredo: a senha aparece no script entregue' -ForegroundColor Red }
+    Assert-Eco 'segredo chega pela credencial temporaria' (& ([ScriptBlock]::Create($s))) 'url|0|1|False|S3nha-do-teste'
+    $global:OnboardingExitCode = 0
+    $de_novo = & ([ScriptBlock]::Create($s))
+    Assert-Eco 'referencia nao pode ser usada duas vezes' "$de_novo|$global:OnboardingExitCode" '|1'
+} finally {
+    Stop-Process -Id $servidor.Id -Force -ErrorAction SilentlyContinue
+}
 
 if ($falhas) { Write-Host "$falhas falha(s)." -ForegroundColor Red; exit 1 }
 Write-Host 'PowerShell: tudo certo.'

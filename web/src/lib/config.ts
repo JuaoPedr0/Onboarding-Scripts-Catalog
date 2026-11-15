@@ -1,7 +1,7 @@
 // Dados que a pagina recebe no bloco <script id="config">: o catalog.json
 // da release, a tag e a URL do webhook de onboarding.
 
-export type TipoParametro = 'string' | 'host' | 'int' | 'bool' | 'enum' | 'lista'
+export type TipoParametro = 'string' | 'host' | 'int' | 'bool' | 'enum' | 'lista' | 'secret'
 export type Sistema = 'windows' | 'linux'
 
 export interface Parametro {
@@ -16,6 +16,8 @@ export interface Parametro {
   valores?: { valor: string; descricao?: string }[]
   descricao?: string
   exemplo?: string
+  /** Segredo: nunca vai para a URL nem fica guardado no navegador. */
+  sensivel?: boolean
   var: string
 }
 
@@ -44,6 +46,8 @@ export interface Config {
   base: string
   /** Webhook que recebe os envios do editor; vazio = envio desligado. */
   envio: string
+  /** Webhook que guarda segredos por alguns minutos e devolve uma referencia de uso unico. */
+  credencial: string
   catalogo: { versao: number; itens: Item[] }
 }
 
