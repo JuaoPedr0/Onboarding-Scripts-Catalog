@@ -24,9 +24,12 @@ tools/<slug>/linux.sh   --+        (CI valida tudo)             (release) --> Gi
 - **`catalog.json`**: indice gerado, uma entrada por ferramenta + SO, com os
   parametros ja resolvidos e o SHA-256 de cada script. E o unico arquivo que
   o n8n precisa ler para montar a pagina e localizar um script.
-- **`web/index.html`**: template da pagina do catalogo. A cada release o
-  workflow `Pages` injeta o `catalog.json`, a tag e a URL do webhook (variavel
-  `ONBOARDING_BASE_URL` do repositorio, fora do codigo) e publica no GitHub Pages.
+- **`web/`**: a pagina do catalogo (React, Tailwind e shadcn/ui). Mostra um
+  formulario por ferramenta e monta o comando conforme os campos sao
+  preenchidos, validando com as mesmas regras do motor. A cada release o
+  workflow `Pages` compila, injeta o `catalog.json`, a tag e a URL do webhook
+  (variavel `ONBOARDING_BASE_URL` do repositorio, fora do codigo) e publica
+  no GitHub Pages.
 - **`lib/render.js`**: o motor que valida a query string e monta o script
   entregue. E o mesmo codigo do no "Resolver parametros" do workflow.
 
@@ -34,8 +37,8 @@ tools/<slug>/linux.sh   --+        (CI valida tudo)             (release) --> Gi
 
 Pelo catalogo (recomendado): abra a pagina publicada no GitHub Pages,
 <https://juaopedr0.github.io/Onboarding-Scripts-Catalog/>, copie o comando da
-ferramenta e troque os campos `<ASSIM>`. Os comandos chamam o webhook de
-onboarding, que so responde na rede interna.
+ferramenta, preencha os parametros e copie o comando pronto. Os comandos
+chamam o webhook de onboarding, que so responde na rede interna.
 
 Direto do repositorio, sem o webhook:
 

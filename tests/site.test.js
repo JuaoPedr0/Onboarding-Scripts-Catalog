@@ -2,56 +2,60 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { montarConfig, injetar } = require('../scripts/site-config');
+const { validar } = require('../lib/render');
 
 const ROOT = path.resolve(__dirname, '..');
 const BASE = 'https://onboarding.exemplo.local/webhook/onboarding';
-
-// Gera o site numa copia temporaria do repo (template + catalogo + script),
-// para o teste nao depender de dist/ nem sujar a arvore.
-function gerar(env, catalogo) {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'site-'));
-  fs.mkdirSync(path.join(tmp, 'web'));
-  fs.mkdirSync(path.join(tmp, 'scripts'));
-  fs.copyFileSync(path.join(ROOT, 'web/index.html'), path.join(tmp, 'web/index.html'));
-  fs.copyFileSync(path.join(ROOT, 'scripts/build-site.js'), path.join(tmp, 'scripts/build-site.js'));
-  fs.writeFileSync(path.join(tmp, 'catalog.json'), catalogo || fs.readFileSync(path.join(ROOT, 'catalog.json')));
-  const r = { tmp, out: '', status: 0, stderr: '' };
-  try {
-    r.out = execFileSync('node', [path.join(tmp, 'scripts/build-site.js'), '--strict'], {
-      env: { PATH: process.env.PATH, ...env }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-    });
-  } catch (e) { r.status = e.status; r.stderr = String(e.stderr); }
-  return r;
-}
+const template = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
+const catalogo = JSON.parse(fs.readFileSync(path.join(ROOT, 'catalog.json'), 'utf8'));
 const configDe = (html) => JSON.parse(html.match(/<script id="config" type="application\/json">([\s\S]*?)<\/script>/)[1]);
 
-test('gera index.html com catalogo, tag e URL do webhook', () => {
-  const r = gerar({ ONBOARDING_BASE_URL: BASE, SITE_TAG: 'v9.9.9', GITHUB_REPOSITORY: 'dono/repo' });
-  assert.strictEqual(r.status, 0, r.stderr);
-  const html = fs.readFileSync(path.join(r.tmp, 'dist/site/index.html'), 'utf8');
-  const cfg = configDe(html);
-  assert.strictEqual(cfg.base, BASE);
-  assert.strictEqual(cfg.tag, 'v9.9.9');
-  assert.strictEqual(cfg.repo, 'dono/repo');
-  assert.strictEqual(cfg.catalogo.itens.length, JSON.parse(fs.readFileSync(path.join(ROOT, 'catalog.json'))).itens.length);
-  assert.ok(fs.existsSync(path.join(r.tmp, 'dist/site/.nojekyll')));
+test('config leva catalogo, tag, repositorio e URL do webhook para a pagina', () => {
+  const cfg = montarConfig({ ONBOARDING_BASE_URL: BASE, SITE_TAG: 'v9.9.9', GITHUB_REPOSITORY: 'dono/repo' }, { strict: true });
+  const lido = configDe(injetar(template, cfg));
+  assert.strictEqual(lido.base, BASE);
+  assert.strictEqual(lido.tag, 'v9.9.9');
+  assert.strictEqual(lido.repo, 'dono/repo');
+  assert.strictEqual(lido.catalogo.itens.length, catalogo.itens.length);
 });
 
-test('--strict falha sem ONBOARDING_BASE_URL ou com URL invalida', () => {
-  assert.strictEqual(gerar({}).status, 1);
-  assert.strictEqual(gerar({ ONBOARDING_BASE_URL: 'http://sem-tls/x' }).status, 1);
-  assert.strictEqual(gerar({ ONBOARDING_BASE_URL: BASE + '?a=1' }).status, 1);
-  assert.strictEqual(gerar({ ONBOARDING_BASE_URL: "https://x/'; alert(1)//" }).status, 1);
+test('strict recusa URL do webhook ausente; URL invalida e recusada sempre', () => {
+  assert.throws(() => montarConfig({}, { strict: true }), /ONBOARDING_BASE_URL vazia/);
+  assert.doesNotThrow(() => montarConfig({}, { strict: false }));
+  for (const url of ['http://sem-tls/x', BASE + '?a=1', "https://x/'; alert(1)//", 'https://x/<script>']) {
+    assert.throws(() => montarConfig({ ONBOARDING_BASE_URL: url }), /invalida/, url);
+  }
 });
 
 test('conteudo do catalogo nao consegue fechar a tag <script>', () => {
   const cat = { versao: 1, itens: [{ slug: 'x', os: 'linux', titulo: '</script><script>alert(1)</script>', categoria: 'Baseline', ordem: 1, descricao: '<b>', arquivo: 'tools/x/linux.sh', sha256: '0', parametros: [] }] };
-  const r = gerar({ ONBOARDING_BASE_URL: BASE }, JSON.stringify(cat));
-  assert.strictEqual(r.status, 0, r.stderr);
-  const html = fs.readFileSync(path.join(r.tmp, 'dist/site/index.html'), 'utf8');
-  assert.strictEqual(html.split('</script>').length, 3, 'apenas as 2 tags </script> do template');
+  const html = injetar(template, montarConfig({ ONBOARDING_BASE_URL: BASE }, { catalogo: cat }));
+  assert.strictEqual(html.split('</script>').length, template.split('</script>').length, 'nenhuma tag </script> a mais');
   assert.strictEqual(configDe(html).catalogo.itens[0].titulo, cat.itens[0].titulo);
+});
+
+// A pagina valida os campos com um port em TypeScript do motor do n8n.
+// Aqui as duas implementacoes respondem aos mesmos casos e tem de concordar.
+test('validacao da pagina e identica a do motor (lib/render.js)', async () => {
+  const { validar: validarWeb } = await import('../web/src/lib/validar.ts');
+  const amostras = [
+    'a', 'a.b', 'srv-01.exemplo.local', '192.0.2.10', 'fe80::1', '-x', 'x-', 'a b', "x'y", 'x;rm -rf /', '$(id)', 'http://x',
+    '0', '1', '1514', '65535', '65536', '99999', '-1', '1.5', '1e3', '0007', '9999999999',
+    'true', 'TRUE', 'sim', 'nao', 'não', 'on', 'off', 'talvez', '1 ',
+    'tcp', 'UDP', 'sctp', 'latest', '4.9.2', '4.9.2-1', '7.4', '7.4.13', 'v7',
+    'a,b', 'a, b ,a', 'a,,b', 'ok,nao ok', 'Windows,Hosts_HyperV', '7zip.7zip,Notepad++.Notepad++', 'America/Sao_Paulo',
+    'x'.repeat(129), 'x'.repeat(300), ' ', ['a', 'b'], ['a,b', 'c'], ['ok', 'n ok'],
+  ];
+  const defs = catalogo.itens.flatMap((i) => i.parametros);
+  defs.push({ nome: 'sem_regex', tipo: 'string' }, { nome: 'lista_livre', tipo: 'lista' }, { nome: 'tipo_novo', tipo: 'uuid' }, { nome: 'sem_tipo' });
+  let casos = 0;
+  for (const def of defs) {
+    for (const bruto of amostras) {
+      assert.deepStrictEqual(validarWeb(def, bruto), validar(def, bruto), `${def.nome} (${def.tipo}) <- ${JSON.stringify(bruto)}`);
+      casos++;
+    }
+  }
+  assert.ok(casos > 1000, `casos comparados: ${casos}`);
 });
