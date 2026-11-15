@@ -47,10 +47,10 @@ test('validacao da pagina e identica a do motor (lib/render.js)', async () => {
     'true', 'TRUE', 'sim', 'nao', 'não', 'on', 'off', 'talvez', '1 ',
     'tcp', 'UDP', 'sctp', 'latest', '4.9.2', '4.9.2-1', '7.4', '7.4.13', 'v7',
     'a,b', 'a, b ,a', 'a,,b', 'ok,nao ok', 'Windows,Hosts_HyperV', '7zip.7zip,Notepad++.Notepad++', 'America/Sao_Paulo',
-    'x'.repeat(129), 'x'.repeat(300), ' ', ['a', 'b'], ['a,b', 'c'], ['ok', 'n ok'],
+    'x'.repeat(129), 'x'.repeat(300), 'x'.repeat(513), ' ', 'linha\nquebrada', 'Senh@ com espaço', ['a', 'b'], ['a,b', 'c'], ['ok', 'n ok'],
   ];
   const defs = catalogo.itens.flatMap((i) => i.parametros);
-  defs.push({ nome: 'sem_regex', tipo: 'string' }, { nome: 'lista_livre', tipo: 'lista' }, { nome: 'tipo_novo', tipo: 'uuid' }, { nome: 'sem_tipo' });
+  defs.push({ nome: 'segredo', tipo: 'secret' }, { nome: 'sem_regex', tipo: 'string' }, { nome: 'lista_livre', tipo: 'lista' }, { nome: 'tipo_novo', tipo: 'uuid' }, { nome: 'sem_tipo' });
   let casos = 0;
   for (const def of defs) {
     for (const bruto of amostras) {

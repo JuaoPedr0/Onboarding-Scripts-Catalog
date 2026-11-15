@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { X } from 'lucide-react'
+import { Eye, EyeOff, X } from 'lucide-react'
 import { useState, type KeyboardEvent } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -68,6 +68,8 @@ export function CampoParametro({ campo, valor, onValor }: Props) {
           onSair={() => setTocado(true)}
           invalido={!!erro}
         />
+      ) : p.tipo === 'secret' ? (
+        <Segredo id={id} valor={typeof valor === 'string' ? valor : ''} onValor={onValor} onSair={() => setTocado(true)} invalido={!!erro} />
       ) : (
         <Input
           id={id}
@@ -100,6 +102,10 @@ export function CampoParametro({ campo, valor, onValor }: Props) {
             >
               {erro}
             </motion.p>
+          ) : p.tipo === 'secret' ? (
+            <motion.p key="segredo" className="text-muted-foreground" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              Não vai para a URL: o host busca por uma referência de uso único. O campo é limpo depois de copiar.
+            </motion.p>
           ) : padrao && p.tipo !== 'enum' ? (
             <motion.p key="padrao" className="text-muted-foreground" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               Em branco, o script usa <span className="font-mono text-foreground/80">{padrao}</span>
@@ -107,6 +113,45 @@ export function CampoParametro({ campo, valor, onValor }: Props) {
           ) : null}
         </AnimatePresence>
       </div>
+    </div>
+  )
+}
+
+// Campo de segredo: mascarado, com botao para ver por um instante.
+// O valor fica so na memoria da pagina; nunca em localStorage nem na URL.
+function Segredo({ id, valor, onValor, onSair, invalido }: { id: string; valor: string; onValor: (v: Valor | undefined) => void; onSair: () => void; invalido: boolean }) {
+  const [visivel, setVisivel] = useState(false)
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={visivel ? 'text' : 'password'}
+        value={valor}
+        onChange={(e) => onValor(e.target.value || undefined)}
+        onBlur={() => {
+          setVisivel(false)
+          onSair()
+        }}
+        autoComplete="new-password"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        data-1p-ignore
+        data-lpignore="true"
+        aria-invalid={invalido}
+        aria-describedby={`${id}-ajuda`}
+        className="bg-background/60 pr-10 font-mono text-[13px]"
+      />
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setVisivel((v) => !v)}
+        aria-label={visivel ? 'Ocultar' : 'Mostrar por um instante'}
+        aria-pressed={visivel}
+        className="absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        {visivel ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
     </div>
   )
 }

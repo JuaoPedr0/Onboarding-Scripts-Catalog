@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import {
   AppWindow,
   ArrowDown,
@@ -10,12 +10,15 @@ import {
   Download,
   ExternalLink,
   FileUp,
+  Info,
+  KeyRound,
   LoaderCircle,
   Plus,
   RefreshCw,
   Send,
   SquareTerminal,
   Trash2,
+  TriangleAlert,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -33,20 +36,24 @@ import {
   arquivosDoRascunho,
   CATEGORIAS,
   checar,
+  comParametros,
   deToolJson,
+  diagnosticar,
+  nomeDeVariavel,
   novaChave,
   novaVariante,
-  novoParametro,
   paraToolJson,
+  parametrosDe,
   rascunhoVazio,
   slugificar,
   TIPOS,
   type Arquivo,
   type Checagem,
-  type ParametroRascunho,
+  type DiagnosticoVariante,
   type Rascunho,
   type VarianteRascunho,
 } from '@/lib/editor'
+import type { Diagnostico, ParametroMeta, TipoMeta } from '@/lib/metadados'
 import { cn } from '@/lib/utils'
 import { Visto } from './icones'
 
@@ -179,14 +186,10 @@ export function Editor({ config, ferramentas, slug, onFechar }: Props) {
   const checagens = useMemo(() => checar(r, ferramentas.map((f) => f.slug)), [r, ferramentas])
   const pendentes = checagens.filter((c) => !c.ok)
   const arquivos = useMemo(() => arquivosDoRascunho(r), [r])
-  const sistemas = new Set(r.variantes.map((v) => v.os))
 
   const mudar = (parcial: Partial<Rascunho>) => setR((a) => ({ ...a, ...parcial }))
   const mudarVariante = (id: string, parcial: Partial<VarianteRascunho>) =>
     setR((a) => ({ ...a, variantes: a.variantes.map((v) => (v.chave === id ? { ...v, ...parcial } : v)) }))
-  const mudarParametro = (id: string, parcial: Partial<ParametroRascunho>) =>
-    setR((a) => ({ ...a, parametros: a.parametros.map((p) => (p.chave === id ? { ...p, ...parcial } : p)) }))
-
   async function enviar() {
     setEnviando(true)
     try {
@@ -291,6 +294,13 @@ export function Editor({ config, ferramentas, slug, onFechar }: Props) {
             </TabsList>
           </div>
 
+          {r.migrado && (
+            <p className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm">
+              Os parâmetros desta ferramenta estavam no <span className="font-mono">tool.json</span>. Eles foram passados para o bloco{' '}
+              <span className="font-mono"># @onboarding</span> de cada script; confira e envie para concluir a migração.
+            </p>
+          )}
+
           <TabsContent value="ferramenta">
             <Cartao>
               <div className="grid gap-5 sm:grid-cols-2">
@@ -345,7 +355,7 @@ export function Editor({ config, ferramentas, slug, onFechar }: Props) {
           </TabsContent>
 
           <TabsContent value="parametros">
-            <Parametros r={r} setR={setR} mudarParametro={mudarParametro} sistemas={sistemas} />
+            <Parametros r={r} mudarVariante={mudarVariante} />
           </TabsContent>
 
           <TabsContent value="envio">
@@ -448,6 +458,8 @@ function Variantes({ r, setR, mudarVariante }: VariantesProps) {
   const arquivo = useRef<HTMLInputElement>(null)
   const v = r.variantes.find((x) => x.chave === aberta) ?? r.variantes[0]
   const padrao = (x: VarianteRascunho) => r.variantes.find((y) => y.os === x.os) === x
+  const diag = useMemo(() => diagnosticar(r), [r])
+  const dv = diag.variantes.find((d) => d.variante.chave === v?.chave)
 
   const adicionar = (nova: VarianteRascunho) => {
     setR((a) => ({ ...a, variantes: [...a.variantes, nova] }))
@@ -473,33 +485,14 @@ function Variantes({ r, setR, mudarVariante }: VariantesProps) {
         Cada variante é um script para um sistema específico, como Windows Server 2025 ou Red Hat. A primeira de cada sistema é a entregue
         quando a pessoa não escolhe.
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {r.variantes.map((x) => {
-          const Icone = ICONE_SO[x.os]
-          return (
-            <button
-              key={x.chave}
-              type="button"
-              onClick={() => setAberta(x.chave)}
-              aria-pressed={x === v}
-              className={cn(
-                'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                x === v ? 'border-primary/40 bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Icone className={cn('size-4', x.os === 'windows' ? 'text-win' : 'text-lnx')} />
-              {x.rotulo || 'Sem nome'}
-              {padrao(x) && <span className="text-xs text-muted-foreground">padrão</span>}
-            </button>
-          )
-        })}
+      <SeletorVariante r={r} escolhida={v?.chave} onEscolher={setAberta} className="mt-4">
         {(['windows', 'linux'] as Sistema[]).map((os) => (
           <Button key={os} variant="outline" size="sm" className="h-auto border-dashed bg-transparent py-1.5 text-muted-foreground" onClick={() => adicionar(novaVariante(os, r.variantes))}>
             <Plus />
             {NOME_SISTEMA[os]}
           </Button>
         ))}
-      </div>
+      </SeletorVariante>
 
       {v && (
         <div key={v.chave} className="mt-5 border-t pt-5">
@@ -556,8 +549,8 @@ function Variantes({ r, setR, mudarVariante }: VariantesProps) {
           />
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>
-              {v.conteudo.split('\n').length} linhas. Os parâmetros entram por{' '}
-              <span className="font-mono">{v.os === 'windows' ? 'param( )' : 'VAR="${VAR:-padrão}"'}</span>.
+              {v.conteudo.split('\n').length} linhas. Declare a variável em{' '}
+              <span className="font-mono">{v.os === 'windows' ? 'param( )' : 'VAR="${VAR:-padrão}"'}</span> e descreva-a no bloco <span className="font-mono"># @onboarding</span>.
             </span>
             {r.variantes.length > 1 && (
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => remover(v)}>
@@ -566,9 +559,78 @@ function Variantes({ r, setR, mudarVariante }: VariantesProps) {
               </Button>
             )}
           </div>
+          {dv && (
+            <div className="mt-4">
+              <Diagnosticos dv={dv} entre={diag.entre} onDeclarar={(variavel) => mudarVariante(v.chave, { conteudo: comParametros(v, [...parametrosDe(v), { name: nomeDeVariavel(variavel), variable: variavel }]) })} />
+            </div>
+          )}
         </div>
       )}
     </Cartao>
+  )
+}
+
+// ---------- Diagnostico ----------
+
+const ICONE_NIVEL = { erro: CircleX, aviso: TriangleAlert, info: Info }
+const COR_NIVEL = { erro: 'text-destructive', aviso: 'text-aviso', info: 'text-muted-foreground' }
+
+interface DiagnosticosProps {
+  dv: DiagnosticoVariante
+  entre: Diagnostico[]
+  /** Acrescenta aos metadados uma variavel que o script ja declara. */
+  onDeclarar: (variavel: string) => void
+}
+
+// O que o editor entendeu do script: parametros reconhecidos e o que nao bate
+// entre metadados, variaveis e as outras variantes.
+function Diagnosticos({ dv, entre, onDeclarar }: DiagnosticosProps) {
+  const nomes = new Set(dv.parametros.map((p) => p.name))
+  const itens = [...dv.itens, ...entre.filter((g) => g.parametro && nomes.has(g.parametro))]
+  const erros = itens.filter((g) => g.nivel === 'erro').length
+  return (
+    <div className="rounded-lg border bg-background/40 p-3.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-sm font-semibold">Diagnóstico do script</h3>
+        <span className="text-xs text-muted-foreground">
+          {dv.parametros.length === 0 ? 'nenhum parâmetro declarado' : `${dv.parametros.length} ${dv.parametros.length === 1 ? 'parâmetro reconhecido' : 'parâmetros reconhecidos'}`}
+          {erros > 0 && `, ${erros} ${erros === 1 ? 'erro' : 'erros'}`}
+        </span>
+      </div>
+      {dv.parametros.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {dv.parametros.map((p, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-0.5 font-mono text-xs">
+              {p.type === 'secret' && <KeyRound className="size-3 text-aviso" />}
+              {p.name || '(sem nome)'}
+              <span className="text-muted-foreground">{p.type ?? 'string'}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {itens.length === 0 ? (
+        <p className="mt-2.5 flex items-center gap-2 text-sm text-muted-foreground">
+          <Visto /> Metadados e variáveis conferem.
+        </p>
+      ) : (
+        <ul className="mt-2.5 flex flex-col gap-1.5">
+          {itens.map((g, i) => {
+            const Icone = ICONE_NIVEL[g.nivel]
+            return (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <Icone className={cn('mt-0.5 size-4 shrink-0', COR_NIVEL[g.nivel])} />
+                <span className="min-w-0 flex-1">{g.texto}</span>
+                {g.codigo === 'sem-metadados' && g.variavel && (
+                  <Button variant="outline" size="sm" className="-my-0.5 h-7 shrink-0 px-2 text-xs" onClick={() => onDeclarar(g.variavel!)}>
+                    Declarar
+                  </Button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -576,139 +638,249 @@ function Variantes({ r, setR, mudarVariante }: VariantesProps) {
 
 interface ParametrosProps {
   r: Rascunho
-  setR: React.Dispatch<React.SetStateAction<Rascunho>>
-  mudarParametro: (id: string, parcial: Partial<ParametroRascunho>) => void
-  sistemas: Set<Sistema>
+  mudarVariante: (id: string, parcial: Partial<VarianteRascunho>) => void
 }
 
-function Parametros({ r, setR, mudarParametro, sistemas }: ParametrosProps) {
-  const [aberto, setAberto] = useState<string>()
-  const mover = (i: number, d: number) =>
-    setR((a) => {
-      const lista = [...a.parametros]
-      const [p] = lista.splice(i, 1)
-      lista.splice(i + d, 0, p)
-      return { ...a, parametros: lista }
-    })
-  const adicionar = () => {
-    const p = novoParametro()
-    setR((a) => ({ ...a, parametros: [...a.parametros, p] }))
-    setAberto(p.chave)
+// Os parametros moram no bloco "# @onboarding" de cada script. Esta aba le o
+// bloco da variante escolhida e, a cada alteracao, regrava o bloco no script.
+function Parametros({ r, mudarVariante }: ParametrosProps) {
+  const [escolhida, setEscolhida] = useState<string | undefined>(r.variantes[0]?.chave)
+  const [aberto, setAberto] = useState<number>()
+  const diag = useMemo(() => diagnosticar(r), [r])
+  const dv = diag.variantes.find((d) => d.variante.chave === escolhida) ?? diag.variantes[0]
+  if (!dv) return <Cartao>Adicione uma variante primeiro.</Cartao>
+  const v = dv.variante
+  const lista = dv.parametros
+  const gravar = (nova: ParametroMeta[]) => mudarVariante(v.chave, { conteudo: comParametros(v, nova) })
+  const mover = (i: number, d: number) => {
+    const nova = [...lista]
+    const [p] = nova.splice(i, 1)
+    nova.splice(i + d, 0, p)
+    gravar(nova)
+    setAberto(i + d)
   }
+  const bloqueado = dv.itens.some((g) => g.codigo === 'bloco-invalido')
 
   return (
     <Cartao>
       <p className="max-w-[68ch] text-sm text-muted-foreground">
-        Cada parâmetro vira um campo no catálogo e chega ao script pela variável indicada. Vale para todas as variantes do sistema.
+        Os parâmetros são declarados no início de cada script, no bloco <span className="font-mono text-foreground/80"># @onboarding</span>. O que você
+        editar aqui é gravado nesse bloco; o que editar no script aparece aqui.
       </p>
-      <div className="mt-4 flex flex-col gap-2">
-        <AnimatePresence initial={false}>
-          {r.parametros.map((p, i) => (
-            <motion.div key={p.chave} layout="position" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <Collapsible open={aberto === p.chave} onOpenChange={(o) => setAberto(o ? p.chave : undefined)} className="rounded-lg border bg-background/40">
-                <CollapsibleTrigger className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
-                  <span className="min-w-0 flex-1 truncate font-mono text-[13px]">{p.nome || 'novo_parametro'}</span>
-                  <span className="text-xs text-muted-foreground">{TIPOS.find((t) => t.valor === p.tipo)?.nome}</span>
-                  {p.obrigatorio && <span className="text-xs text-aviso">obrigatório</span>}
-                  <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-                  <div className="grid gap-5 border-t px-3.5 py-4 sm:grid-cols-2">
-                    <Campo id={`p-${p.chave}-nome`} rotulo="Nome" ajuda="Como aparece na URL: minúsculas, números e _.">
-                      <Input id={`p-${p.chave}-nome`} value={p.nome} onChange={(e) => mudarParametro(p.chave, { nome: e.target.value.toLowerCase() })} className="font-mono text-[13px]" spellCheck={false} />
-                    </Campo>
-                    <Campo rotulo="Tipo" ajuda={TIPOS.find((t) => t.valor === p.tipo)?.ajuda}>
-                      <ToggleGroup type="single" variant="outline" size="sm" value={p.tipo} onValueChange={(t) => t && mudarParametro(p.chave, { tipo: t as ParametroRascunho['tipo'] })} className="flex-wrap">
-                        {TIPOS.map((t) => (
-                          <ToggleGroupItem key={t.valor} value={t.valor} className="px-2.5 data-[state=on]:bg-primary/15 data-[state=on]:text-primary">
-                            {t.nome}
-                          </ToggleGroupItem>
-                        ))}
-                      </ToggleGroup>
-                    </Campo>
-                    <Campo id={`p-${p.chave}-desc`} rotulo="Descrição" ajuda="Explica o campo para quem preenche." className="sm:col-span-2">
-                      <Input id={`p-${p.chave}-desc`} value={p.descricao} onChange={(e) => mudarParametro(p.chave, { descricao: e.target.value })} />
-                    </Campo>
-                    {p.tipo !== 'bool' && (
-                      <Campo id={`p-${p.chave}-padrao`} rotulo="Valor padrão" ajuda={p.tipo === 'lista' ? 'Itens separados por vírgula. Tem de ser o mesmo padrão do script.' : 'Em branco = sem padrão. Tem de ser o mesmo padrão do script.'}>
-                        <Input id={`p-${p.chave}-padrao`} value={p.padrao} onChange={(e) => mudarParametro(p.chave, { padrao: e.target.value })} className="font-mono text-[13px]" spellCheck={false} />
-                      </Campo>
-                    )}
-                    {p.tipo !== 'bool' && p.tipo !== 'enum' && (
-                      <Campo id={`p-${p.chave}-ex`} rotulo="Exemplo" ajuda="Mostrado dentro do campo vazio.">
-                        <Input id={`p-${p.chave}-ex`} value={p.exemplo} onChange={(e) => mudarParametro(p.chave, { exemplo: e.target.value })} className="font-mono text-[13px]" spellCheck={false} />
-                      </Campo>
-                    )}
-                    {(p.tipo === 'string' || p.tipo === 'lista') && (
-                      <Campo id={`p-${p.chave}-re`} rotulo="Regex de validação" ajuda={p.tipo === 'lista' ? 'Aplicada a cada item. Em branco: letras, números, ponto, _ e hífen.' : 'Em branco: letras, números, ponto, _ e hífen.'} className="sm:col-span-2">
-                        <Input id={`p-${p.chave}-re`} value={p.regex} placeholder="^[A-Za-z0-9._-]{1,128}$" onChange={(e) => mudarParametro(p.chave, { regex: e.target.value })} className="font-mono text-[13px]" spellCheck={false} />
-                      </Campo>
-                    )}
-                    {p.tipo === 'int' && (
-                      <>
-                        <Campo id={`p-${p.chave}-min`} rotulo="Mínimo">
-                          <Input id={`p-${p.chave}-min`} value={p.min} inputMode="numeric" onChange={(e) => mudarParametro(p.chave, { min: e.target.value })} className="font-mono text-[13px]" />
-                        </Campo>
-                        <Campo id={`p-${p.chave}-max`} rotulo="Máximo">
-                          <Input id={`p-${p.chave}-max`} value={p.max} inputMode="numeric" onChange={(e) => mudarParametro(p.chave, { max: e.target.value })} className="font-mono text-[13px]" />
-                        </Campo>
-                      </>
-                    )}
-                    {p.tipo === 'enum' && (
-                      <Campo id={`p-${p.chave}-val`} rotulo="Opções" ajuda="Uma por linha. Depois de |, uma explicação opcional." className="sm:col-span-2">
-                        <Textarea id={`p-${p.chave}-val`} value={p.valores} rows={3} placeholder={'tcp | Padrão, recomendado\nudp'} onChange={(e) => mudarParametro(p.chave, { valores: e.target.value })} className="font-mono text-[13px]" spellCheck={false} />
-                      </Campo>
-                    )}
-                    {sistemas.has('windows') && (
-                      <Campo id={`p-${p.chave}-vw`} rotulo="Variável no PowerShell" ajuda="Nome dentro de param( ), sem o $. Em branco: não vale no Windows.">
-                        <Input id={`p-${p.chave}-vw`} value={p.varWindows} placeholder="ex.: ZabbixServer" onChange={(e) => mudarParametro(p.chave, { varWindows: e.target.value })} className="font-mono text-[13px]" spellCheck={false} />
-                      </Campo>
-                    )}
-                    {sistemas.has('linux') && (
-                      <Campo id={`p-${p.chave}-vl`} rotulo="Variável no Bash" ajuda="Em MAIÚSCULAS. Em branco: não vale no Linux.">
-                        <Input id={`p-${p.chave}-vl`} value={p.varLinux} placeholder="ex.: ZABBIX_SERVER" onChange={(e) => mudarParametro(p.chave, { varLinux: e.target.value.toUpperCase() })} className="font-mono text-[13px]" spellCheck={false} />
-                      </Campo>
-                    )}
-                    <Chave
-                      id={`p-${p.chave}-obr`}
-                      rotulo="Obrigatório"
-                      ajuda="O catálogo avisa quando ficar em branco."
-                      valor={p.obrigatorio}
-                      onValor={(obrigatorio) => mudarParametro(p.chave, { obrigatorio })}
-                      className="sm:col-span-2"
-                    />
-                    {Object.keys(p.resto).length > 0 && (
-                      <p className="text-xs text-muted-foreground sm:col-span-2">
-                        Mantidos como estão no repositório: <span className="font-mono">{Object.keys(p.resto).join(', ')}</span>.
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-1 sm:col-span-2">
-                      <Button variant="ghost" size="sm" disabled={i === 0} onClick={() => mover(i, -1)} className="text-muted-foreground">
-                        <ArrowUp />
-                        Subir
-                      </Button>
-                      <Button variant="ghost" size="sm" disabled={i === r.parametros.length - 1} onClick={() => mover(i, 1)} className="text-muted-foreground">
-                        <ArrowDown />
-                        Descer
-                      </Button>
-                      <Button variant="ghost" size="sm" className="ml-auto text-destructive hover:text-destructive" onClick={() => setR((a) => ({ ...a, parametros: a.parametros.filter((x) => x.chave !== p.chave) }))}>
-                        <Trash2 />
-                        Remover
-                      </Button>
-                    </div>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        {r.parametros.length === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Sem parâmetros: o comando do catálogo fica pronto para copiar.</p>}
+      <SeletorVariante r={r} escolhida={v.chave} onEscolher={(c) => (setEscolhida(c), setAberto(undefined))} className="mt-4" />
+
+      <div className="mt-4">
+        <Diagnosticos dv={dv} entre={diag.entre} onDeclarar={(variavel) => gravar([...lista, { name: nomeDeVariavel(variavel), variable: variavel }])} />
       </div>
-      <Button variant="outline" className="mt-4 border-dashed bg-transparent" onClick={adicionar}>
-        <Plus />
-        Adicionar parâmetro
-      </Button>
+
+      {bloqueado ? (
+        <p className="mt-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Corrija o bloco de metadados na aba Variantes para editar os parâmetros aqui.</p>
+      ) : (
+        <>
+          <div className="mt-4 flex flex-col gap-2">
+            {lista.map((p, i) => (
+              <ItemParametro
+                key={`${v.chave}:${i}:${lista.length}`}
+                p={p}
+                os={v.os}
+                aberto={aberto === i}
+                onAbrir={(o) => setAberto(o ? i : undefined)}
+                onMudar={(novo) => gravar(lista.map((x, j) => (j === i ? novo : x)))}
+                onRemover={() => (gravar(lista.filter((_, j) => j !== i)), setAberto(undefined))}
+                onSubir={i > 0 ? () => mover(i, -1) : undefined}
+                onDescer={i < lista.length - 1 ? () => mover(i, 1) : undefined}
+              />
+            ))}
+            {lista.length === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Sem parâmetros: o comando do catálogo fica pronto para copiar.</p>}
+          </div>
+          <Button variant="outline" className="mt-4 border-dashed bg-transparent" onClick={() => (gravar([...lista, { name: '', variable: '' }]), setAberto(lista.length))}>
+            <Plus />
+            Adicionar parâmetro
+          </Button>
+        </>
+      )}
     </Cartao>
+  )
+}
+
+interface ItemProps {
+  p: ParametroMeta
+  os: Sistema
+  aberto: boolean
+  onAbrir: (o: boolean) => void
+  onMudar: (p: ParametroMeta) => void
+  onRemover: () => void
+  onSubir?: () => void
+  onDescer?: () => void
+}
+
+const textoDe = (v: unknown) => (v === undefined || v === null ? '' : Array.isArray(v) ? v.join(', ') : String(v))
+const opcoesComoTexto = (p: ParametroMeta) =>
+  (p.options ?? []).map((o) => (typeof o === 'string' ? o : o.description ? `${o.value} | ${o.description}` : o.value)).join('\n')
+
+function ItemParametro({ p, os, aberto, onAbrir, onMudar, onRemover, onSubir, onDescer }: ItemProps) {
+  const tipo = p.type ?? 'string'
+  // Campos de texto livre guardam o que foi digitado; o bloco recebe o valor ja tipado.
+  const [t, setT] = useState({ padrao: textoDe(p.default), opcoes: opcoesComoTexto(p), aliases: textoDe(p.aliases), min: textoDe(p.min), max: textoDe(p.max) })
+
+  // Monta o parametro limpo: campo vazio nao vai para o bloco.
+  const montar = (parcial: Partial<ParametroMeta>, textos = t): ParametroMeta => {
+    const base = { ...p, ...parcial }
+    const tp = base.type ?? 'string'
+    const novo: ParametroMeta = { name: base.name, variable: base.variable }
+    if (base.type) novo.type = base.type
+    if (base.required) novo.required = true
+    const padrao = textos.padrao.trim()
+    if (tp === 'bool') {
+      if (base.default === true) novo.default = true
+    } else if (tp === 'list') {
+      const itens = padrao.split(',').map((x) => x.trim()).filter(Boolean)
+      if (itens.length) novo.default = itens
+    } else if (tp !== 'secret' && padrao) {
+      novo.default = tp === 'int' && /^\d+$/.test(padrao) ? Number(padrao) : padrao
+    }
+    if (base.description) novo.description = base.description
+    if (base.example && tp !== 'bool' && tp !== 'enum' && tp !== 'secret') novo.example = base.example
+    if (base.regex && (tp === 'string' || tp === 'list')) novo.regex = base.regex
+    if (tp === 'int') {
+      if (/^-?\d+$/.test(textos.min.trim())) novo.min = Number(textos.min)
+      if (/^-?\d+$/.test(textos.max.trim())) novo.max = Number(textos.max)
+    }
+    if (tp === 'enum') {
+      novo.options = textos.opcoes.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+        const i = l.indexOf('|')
+        return i < 0 ? l : { value: l.slice(0, i).trim(), description: l.slice(i + 1).trim() }
+      })
+    }
+    const aliases = textos.aliases.split(',').map((x) => x.trim()).filter(Boolean)
+    if (aliases.length) novo.aliases = aliases
+    return novo
+  }
+  const mudar = (parcial: Partial<ParametroMeta>) => onMudar(montar(parcial))
+  const mudarTexto = (parcial: Partial<typeof t>) => {
+    const textos = { ...t, ...parcial }
+    setT(textos)
+    onMudar(montar({}, textos))
+  }
+  const id = (campo: string) => `p-${p.variable || 'novo'}-${campo}`
+  const mono = 'font-mono text-[13px]'
+
+  return (
+    <Collapsible open={aberto} onOpenChange={onAbrir} className="rounded-lg border bg-background/40">
+      <CollapsibleTrigger className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+        {tipo === 'secret' && <KeyRound className="size-3.5 shrink-0 text-aviso" />}
+        <span className="min-w-0 flex-1 truncate font-mono text-[13px]">{p.name || 'novo_parametro'}</span>
+        <span className="hidden truncate font-mono text-xs text-muted-foreground sm:block">{p.variable && (os === 'windows' ? `$${p.variable}` : p.variable)}</span>
+        <span className="text-xs text-muted-foreground">{TIPOS.find((x) => x.valor === tipo)?.nome ?? tipo}</span>
+        {p.required && <span className="text-xs text-aviso">obrigatório</span>}
+        <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+        <div className="grid gap-5 border-t px-3.5 py-4 sm:grid-cols-2">
+          <Campo id={id('nome')} rotulo="Nome" ajuda="Como aparece na URL: minúsculas, números e _.">
+            <Input id={id('nome')} value={p.name ?? ''} onChange={(e) => mudar({ name: e.target.value.toLowerCase() })} className={mono} spellCheck={false} />
+          </Campo>
+          <Campo id={id('var')} rotulo={os === 'windows' ? 'Variável no PowerShell' : 'Variável no Bash'} ajuda={os === 'windows' ? 'Nome dentro de param( ), sem o $.' : 'Em MAIÚSCULAS, declarada como VAR="${VAR:-}".'}>
+            <Input id={id('var')} value={p.variable ?? ''} onChange={(e) => mudar({ variable: os === 'linux' ? e.target.value.toUpperCase() : e.target.value })} className={mono} spellCheck={false} />
+          </Campo>
+          <Campo rotulo="Tipo" ajuda={TIPOS.find((x) => x.valor === tipo)?.ajuda} className="sm:col-span-2">
+            <ToggleGroup type="single" variant="outline" size="sm" value={tipo} onValueChange={(x) => x && mudar({ type: x as TipoMeta })} className="flex-wrap">
+              {TIPOS.map((x) => (
+                <ToggleGroupItem key={x.valor} value={x.valor} className="px-2.5 data-[state=on]:bg-primary/15 data-[state=on]:text-primary">
+                  {x.nome}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </Campo>
+          <Campo id={id('desc')} rotulo="Descrição" ajuda="Explica o campo para quem preenche." className="sm:col-span-2">
+            <Input id={id('desc')} value={p.description ?? ''} onChange={(e) => mudar({ description: e.target.value })} />
+          </Campo>
+          {tipo === 'secret' ? (
+            <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground sm:col-span-2">
+              No catálogo este campo é mascarado. O valor não vai para a URL, para o GitHub nem para o rascunho: o host o busca uma única vez por uma
+              referência temporária. Segredo não tem valor padrão nem exemplo.
+            </p>
+          ) : tipo === 'bool' ? (
+            <Chave id={id('padrao')} rotulo="Ligado por padrão" ajuda="Tem de ser o mesmo padrão do script." valor={p.default === true} onValor={(x) => mudar({ default: x ? true : undefined })} className="sm:col-span-2" />
+          ) : (
+            <Campo id={id('padrao')} rotulo="Valor padrão" ajuda={tipo === 'list' ? 'Itens separados por vírgula. Tem de ser o mesmo padrão do script.' : 'Em branco = sem padrão. Tem de ser o mesmo padrão do script.'}>
+              <Input id={id('padrao')} value={t.padrao} onChange={(e) => mudarTexto({ padrao: e.target.value })} className={mono} spellCheck={false} />
+            </Campo>
+          )}
+          {tipo !== 'bool' && tipo !== 'enum' && tipo !== 'secret' && (
+            <Campo id={id('ex')} rotulo="Exemplo" ajuda="Mostrado dentro do campo vazio.">
+              <Input id={id('ex')} value={p.example ?? ''} onChange={(e) => mudar({ example: e.target.value })} className={mono} spellCheck={false} />
+            </Campo>
+          )}
+          {(tipo === 'string' || tipo === 'list') && (
+            <Campo id={id('re')} rotulo="Regex de validação" ajuda={tipo === 'list' ? 'Aplicada a cada item. Em branco: letras, números, ponto, _ e hífen.' : 'Em branco: letras, números, ponto, _ e hífen.'} className="sm:col-span-2">
+              <Input id={id('re')} value={p.regex ?? ''} placeholder="^[A-Za-z0-9._-]{1,128}$" onChange={(e) => mudar({ regex: e.target.value })} className={mono} spellCheck={false} />
+            </Campo>
+          )}
+          {tipo === 'int' && (
+            <>
+              <Campo id={id('min')} rotulo="Mínimo">
+                <Input id={id('min')} value={t.min} inputMode="numeric" onChange={(e) => mudarTexto({ min: e.target.value })} className={mono} />
+              </Campo>
+              <Campo id={id('max')} rotulo="Máximo">
+                <Input id={id('max')} value={t.max} inputMode="numeric" onChange={(e) => mudarTexto({ max: e.target.value })} className={mono} />
+              </Campo>
+            </>
+          )}
+          {tipo === 'enum' && (
+            <Campo id={id('val')} rotulo="Opções" ajuda="Uma por linha. Depois de |, uma explicação opcional." className="sm:col-span-2">
+              <Textarea id={id('val')} value={t.opcoes} rows={3} placeholder={'tcp | Padrão, recomendado\nudp'} onChange={(e) => mudarTexto({ opcoes: e.target.value })} className={mono} spellCheck={false} />
+            </Campo>
+          )}
+          <Campo id={id('alias')} rotulo="Nomes alternativos" ajuda="Outros nomes aceitos na URL, separados por vírgula. Opcional." className="sm:col-span-2">
+            <Input id={id('alias')} value={t.aliases} onChange={(e) => mudarTexto({ aliases: e.target.value.toLowerCase() })} className={mono} spellCheck={false} />
+          </Campo>
+          <Chave id={id('obr')} rotulo="Obrigatório" ajuda="O catálogo avisa quando ficar em branco." valor={p.required === true} onValor={(x) => mudar({ required: x })} className="sm:col-span-2" />
+          <div className="flex flex-wrap gap-1 sm:col-span-2">
+            <Button variant="ghost" size="sm" disabled={!onSubir} onClick={onSubir} className="text-muted-foreground">
+              <ArrowUp />
+              Subir
+            </Button>
+            <Button variant="ghost" size="sm" disabled={!onDescer} onClick={onDescer} className="text-muted-foreground">
+              <ArrowDown />
+              Descer
+            </Button>
+            <Button variant="ghost" size="sm" className="ml-auto text-destructive hover:text-destructive" onClick={onRemover}>
+              <Trash2 />
+              Remover
+            </Button>
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+function SeletorVariante({ r, escolhida, onEscolher, className, children }: { r: Rascunho; escolhida?: string; onEscolher: (chave: string) => void; className?: string; children?: ReactNode }) {
+  const padrao = (x: VarianteRascunho) => r.variantes.find((y) => y.os === x.os) === x
+  return (
+    <div className={cn('flex flex-wrap gap-2', className)}>
+      {r.variantes.map((x) => {
+        const Icone = ICONE_SO[x.os]
+        return (
+          <button
+            key={x.chave}
+            type="button"
+            onClick={() => onEscolher(x.chave)}
+            aria-pressed={x.chave === escolhida}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+              x.chave === escolhida ? 'border-primary/40 bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icone className={cn('size-4', x.os === 'windows' ? 'text-win' : 'text-lnx')} />
+            {x.rotulo || 'Sem nome'}
+            {padrao(x) && <span className="text-xs text-muted-foreground">padrão</span>}
+          </button>
+        )
+      })}
+      {children}
+    </div>
   )
 }
 

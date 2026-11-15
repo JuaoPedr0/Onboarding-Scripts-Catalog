@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
+# @onboarding:begin
+# {
+#   "schemaVersion": 1,
+#   "parameters": [
+#     { "name": "manager", "variable": "WAZUH_MANAGER", "type": "host", "required": true, "description": "IP ou FQDN do Wazuh manager", "example": "wazuh.exemplo.local", "aliases": ["wazuh_manager"] },
+#     { "name": "group", "variable": "WAZUH_AGENT_GROUPS_CSV", "type": "list", "required": false, "description": "Grupo(s) do agente no manager, separados por vírgula. Vazio deixa só no grupo padrão", "example": "Linux", "regex": "^[A-Za-z0-9._-]{1,128}$", "aliases": ["groups"] },
+#     { "name": "version", "variable": "WAZUH_VERSION", "type": "string", "required": false, "default": "latest", "description": "Versão do agente: latest, X.Y.Z ou X.Y.Z-R", "regex": "^(latest|\\d+\\.\\d+\\.\\d+(-\\d+)?)$", "aliases": ["wazuh_version"] },
+#     { "name": "name", "variable": "WAZUH_AGENT_NAME", "type": "string", "required": false, "description": "Nome do agente no manager. Vazio usa o hostname", "regex": "^[A-Za-z0-9._-]{1,64}$", "aliases": ["agent_name"] },
+#     { "name": "protocol", "variable": "WAZUH_PROTOCOL", "type": "enum", "required": false, "default": "tcp", "description": "Protocolo de comunicação com o manager", "options": [{"value":"tcp","description":"Padrão, recomendado"},{"value":"udp","description":"Só se o manager estiver configurado em UDP"}] },
+#     { "name": "manager_port", "variable": "WAZUH_MANAGER_PORT", "type": "int", "required": false, "default": 1514, "description": "Porta de comunicação do agente com o manager", "min": 1, "max": 65535 },
+#     { "name": "enroll_port", "variable": "WAZUH_REGISTRATION_PORT", "type": "int", "required": false, "default": 1515, "description": "Porta de enrollment (authd)", "min": 1, "max": 65535 },
+#     { "name": "force", "variable": "FORCE_REINSTALL", "type": "bool", "required": false, "description": "Força reinstalação limpa mesmo com o agente já conforme" },
+#     { "name": "preserve_keys", "variable": "PRESERVE_KEYS", "type": "bool", "required": false, "description": "Mantém o client.keys atual, sem gerar novo registro no manager" },
+#     { "name": "skip_connectivity", "variable": "SKIP_CONNECTIVITY", "type": "bool", "required": false, "description": "Pula o teste de portas antes de mexer no host" }
+#   ]
+# }
+# @onboarding:end
 
 # ============================================================
 # WAZUH AGENT - PROVISIONAMENTO LINUX

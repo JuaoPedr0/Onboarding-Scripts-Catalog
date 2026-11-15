@@ -1,16 +1,18 @@
 // Modelo do editor de ferramentas: rascunho em edicao, conversao de/para
 // tool.json e as checagens que o CI do repositorio tambem faz. O CI continua
 // sendo a autoridade; aqui e so para a pessoa nao enviar algo que vai falhar.
-import type { Sistema, TipoParametro } from './config'
+import type { Sistema } from './config'
+import { compararVariantes, deLegado, escreverBloco, lerBloco, validarBloco, type Diagnostico, type ParametroMeta, type TipoMeta } from './metadados'
 
 export const CATEGORIAS = ['Monitoramento', 'Segurança', 'Baseline']
-export const TIPOS: { valor: TipoParametro; nome: string; ajuda: string }[] = [
+export const TIPOS: { valor: TipoMeta; nome: string; ajuda: string }[] = [
   { valor: 'string', nome: 'Texto', ajuda: 'Texto livre, validado por regex' },
   { valor: 'host', nome: 'Host', ajuda: 'IP ou nome de host' },
   { valor: 'int', nome: 'Número', ajuda: 'Inteiro, com mínimo e máximo opcionais' },
   { valor: 'bool', nome: 'Sim/não', ajuda: 'Chave liga/desliga' },
   { valor: 'enum', nome: 'Opções', ajuda: 'Uma entre opções fixas' },
-  { valor: 'lista', nome: 'Lista', ajuda: 'Vários valores separados por vírgula' },
+  { valor: 'list', nome: 'Lista', ajuda: 'Vários valores separados por vírgula' },
+  { valor: 'secret', nome: 'Segredo', ajuda: 'Senha, token ou chave: campo mascarado, entregue por credencial temporária' },
 ]
 const EXT: Record<Sistema, string> = { windows: 'ps1', linux: 'sh' }
 
@@ -23,25 +25,6 @@ export interface VarianteRascunho {
   conteudo: string
 }
 
-export interface ParametroRascunho {
-  chave: string
-  nome: string
-  tipo: TipoParametro
-  obrigatorio: boolean
-  padrao: string
-  regex: string
-  min: string
-  max: string
-  /** Uma opcao por linha: "valor | descricao". */
-  valores: string
-  descricao: string
-  exemplo: string
-  varWindows: string
-  varLinux: string
-  /** Campos do tool.json que o formulario nao edita (aliases, porPlataforma). */
-  resto: Record<string, unknown>
-}
-
 export interface Rascunho {
   modo: 'novo' | 'editar'
   slug: string
@@ -50,7 +33,8 @@ export interface Rascunho {
   ordem: string
   ativo: boolean
   variantes: VarianteRascunho[]
-  parametros: ParametroRascunho[]
+  /** Os parametros vieram do formato antigo (tool.json) e foram passados para os scripts. */
+  migrado?: boolean
   autor: string
   resumo: string
 }
@@ -87,23 +71,6 @@ export function novaVariante(os: Sistema, existentes: VarianteRascunho[]): Varia
   }
 }
 
-export const novoParametro = (): ParametroRascunho => ({
-  chave: novaChave(),
-  nome: '',
-  tipo: 'string',
-  obrigatorio: false,
-  padrao: '',
-  regex: '',
-  min: '',
-  max: '',
-  valores: '',
-  descricao: '',
-  exemplo: '',
-  varWindows: '',
-  varLinux: '',
-  resto: {},
-})
-
 export const rascunhoVazio = (ordem: number): Rascunho => ({
   modo: 'novo',
   slug: '',
@@ -112,10 +79,41 @@ export const rascunhoVazio = (ordem: number): Rascunho => ({
   ordem: String(ordem),
   ativo: true,
   variantes: [novaVariante('windows', [])],
-  parametros: [],
   autor: '',
   resumo: '',
 })
+
+// ---------- parametros de uma variante (bloco @onboarding do script) ----------
+
+export const parametrosDe = (v: VarianteRascunho): ParametroMeta[] => lerBloco(v.conteudo).bloco?.parameters ?? []
+
+/** Regrava o bloco de metadados do script com a lista dada. */
+export const comParametros = (v: VarianteRascunho, parametros: ParametroMeta[]): string =>
+  escreverBloco(v.conteudo, { schemaVersion: 1, parameters: parametros })
+
+/** Sugestao de nome de URL para uma variavel: RegistrationPassword -> registration_password. */
+export const nomeDeVariavel = (variavel: string) =>
+  variavel
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .slice(0, 40)
+
+export interface DiagnosticoVariante {
+  variante: VarianteRascunho
+  parametros: ParametroMeta[]
+  itens: Diagnostico[]
+}
+
+/** Diagnostico de cada variante e das diferencas entre elas. */
+export function diagnosticar(r: Rascunho): { variantes: DiagnosticoVariante[]; entre: Diagnostico[] } {
+  const variantes = r.variantes.map((v) => {
+    const leitura = lerBloco(v.conteudo)
+    return { variante: v, parametros: leitura.bloco?.parameters ?? [], itens: validarBloco(leitura, v.os, v.conteudo) }
+  })
+  const entre = compararVariantes(variantes.map((d) => ({ rotulo: d.variante.rotulo || d.variante.id || 'sem nome', os: d.variante.os, parametros: d.parametros })))
+  return { variantes, entre }
+}
 
 // ---------- tool.json -> rascunho ----------
 
@@ -126,77 +124,28 @@ interface ToolJson {
   ordem: number
   ativo: boolean
   variantes: { os: Sistema; id: string; rotulo: string; descricao: string }[]
-  parametros: Record<string, unknown>[]
+  /** Formato anterior: parametros fora dos scripts. */
+  parametros?: Record<string, unknown>[]
 }
 
 export function deToolJson(tool: ToolJson, scripts: Record<string, string>): Rascunho {
-  return {
-    modo: 'editar',
-    slug: tool.slug,
-    titulo: tool.titulo,
-    categoria: tool.categoria,
-    ordem: String(tool.ordem),
-    ativo: tool.ativo,
-    variantes: tool.variantes.map((v) => ({ chave: novaChave(), ...v, conteudo: scripts[arquivoDe(v)] ?? '' })),
-    parametros: tool.parametros.map((p) => {
-      const { nome, tipo, obrigatorio, padrao, regex, min, max, valores, descricao, exemplo, var: variavel, ...resto } = p as {
-        nome: string
-        tipo: TipoParametro
-        obrigatorio: boolean
-        padrao?: unknown
-        regex?: string
-        min?: number
-        max?: number
-        valores?: { valor: string; descricao?: string }[]
-        descricao?: string
-        exemplo?: string
-        var: Partial<Record<Sistema, string>>
-      }
-      return {
-        chave: novaChave(),
-        nome,
-        tipo,
-        obrigatorio,
-        padrao: padrao === null || padrao === undefined ? '' : Array.isArray(padrao) ? padrao.join(', ') : String(padrao),
-        regex: regex ?? '',
-        min: min === undefined ? '' : String(min),
-        max: max === undefined ? '' : String(max),
-        valores: (valores ?? []).map((v) => (v.descricao ? `${v.valor} | ${v.descricao}` : v.valor)).join('\n'),
-        descricao: descricao ?? '',
-        exemplo: exemplo ?? '',
-        varWindows: variavel.windows ?? '',
-        varLinux: variavel.linux ?? '',
-        resto,
-      }
-    }),
-    autor: '',
-    resumo: '',
-  }
+  let migrado = false
+  const variantes = tool.variantes.map((v) => {
+    let conteudo = scripts[arquivoDe(v)] ?? ''
+    // Script ainda sem bloco: leva para dentro dele os parametros do tool.json.
+    if (lerBloco(conteudo).inicio === undefined && tool.parametros?.length) {
+      const legados = tool.parametros.map((p) => deLegado(p, v.os)).filter((p): p is ParametroMeta => p !== null)
+      conteudo = escreverBloco(conteudo, { schemaVersion: 1, parameters: legados })
+      migrado = true
+    }
+    return { chave: novaChave(), ...v, conteudo }
+  })
+  return { modo: 'editar', slug: tool.slug, titulo: tool.titulo, categoria: tool.categoria, ordem: String(tool.ordem), ativo: tool.ativo, variantes, migrado, autor: '', resumo: '' }
 }
 
 // ---------- rascunho -> arquivos ----------
 
-function padraoTipado(p: ParametroRascunho): unknown {
-  const t = p.padrao.trim()
-  if (p.tipo === 'lista') return t ? t.split(',').map((x) => x.trim()).filter(Boolean) : []
-  if (p.tipo === 'bool') return /^(true|sim|1)$/i.test(t)
-  if (!t) return null
-  if (p.tipo === 'int') return /^\d+$/.test(t) ? Number(t) : t
-  return t
-}
-
-const opcoes = (p: ParametroRascunho) =>
-  p.valores
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => {
-      const i = l.indexOf('|')
-      return i < 0 ? { valor: l } : { valor: l.slice(0, i).trim(), descricao: l.slice(i + 1).trim() }
-    })
-
 export function paraToolJson(r: Rascunho): string {
-  const sistemas = new Set(r.variantes.map((v) => v.os))
   const tool = {
     $schema: '../../schema/tool.schema.json',
     slug: r.slug,
@@ -205,20 +154,6 @@ export function paraToolJson(r: Rascunho): string {
     ordem: Number(r.ordem) || 0,
     ativo: r.ativo,
     variantes: r.variantes.map((v) => ({ os: v.os, id: v.id, rotulo: v.rotulo.trim(), descricao: v.descricao.trim() })),
-    parametros: r.parametros.map((p) => {
-      const variavel: Partial<Record<Sistema, string>> = {}
-      if (sistemas.has('windows') && p.varWindows.trim()) variavel.windows = p.varWindows.trim()
-      if (sistemas.has('linux') && p.varLinux.trim()) variavel.linux = p.varLinux.trim()
-      const item: Record<string, unknown> = { nome: p.nome, tipo: p.tipo, obrigatorio: p.obrigatorio, padrao: padraoTipado(p) }
-      if (p.regex.trim() && (p.tipo === 'string' || p.tipo === 'lista')) item.regex = p.regex.trim()
-      if (p.tipo === 'int' && p.min.trim()) item.min = Number(p.min)
-      if (p.tipo === 'int' && p.max.trim()) item.max = Number(p.max)
-      if (p.tipo === 'enum') item.valores = opcoes(p)
-      if (p.descricao.trim()) item.descricao = p.descricao.trim()
-      if (p.exemplo.trim()) item.exemplo = p.exemplo.trim()
-      item.var = variavel
-      return { ...item, ...p.resto }
-    }),
   }
   return JSON.stringify(tool, null, 2) + '\n'
 }
@@ -248,15 +183,6 @@ const PROIBIDO: [RegExp, string][] = [
   [/\b(?:gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16})\b/, 'um token'],
 ]
 
-// Variaveis declaradas no bloco de parametros do script (mesma regra do CI).
-export function variaveisDoScript(os: Sistema, texto: string): Set<string> {
-  if (os === 'windows') {
-    const m = texto.replace(/\r/g, '').match(/^param\s*\(([\s\S]*?)^\)/m)
-    return new Set(m ? [...m[1].matchAll(/\$([A-Za-z][A-Za-z0-9]*)/g)].map((x) => x[1]) : [])
-  }
-  return new Set([...texto.matchAll(/"\$\{([A-Z][A-Z0-9_]*):-/g)].map((x) => x[1]))
-}
-
 export function checar(r: Rascunho, slugsExistentes: string[]): Checagem[] {
   const c: Checagem[] = []
   const add = (aba: Checagem['aba'], ok: boolean, texto: string) => c.push({ aba, ok, texto })
@@ -284,32 +210,15 @@ export function checar(r: Rascunho, slugsExistentes: string[]): Checagem[] {
     }
   }
 
-  const sistemas = new Set(r.variantes.map((v) => v.os))
-  const nomes = new Set<string>()
-  for (const p of r.parametros) {
-    const n = p.nome || 'sem nome'
-    add('parametros', /^[a-z][a-z0-9_]{0,39}$/.test(p.nome) && !nomes.has(p.nome) && !['script', 'os', 'variante'].includes(p.nome), `Parâmetro “${n}”: nome único, em minúsculas, sem espaços`)
-    nomes.add(p.nome)
-    if (p.tipo === 'enum') add('parametros', opcoes(p).length > 0, `Parâmetro “${n}”: pelo menos uma opção`)
-    if (p.regex.trim()) {
-      let valida = true
-      try {
-        new RegExp(p.regex)
-      } catch {
-        valida = false
-      }
-      add('parametros', valida, `Parâmetro “${n}”: regex válida`)
-    }
-    const usa = { windows: sistemas.has('windows') && !!p.varWindows.trim(), linux: sistemas.has('linux') && !!p.varLinux.trim() }
-    add('parametros', usa.windows || usa.linux, `Parâmetro “${n}”: variável informada para pelo menos um sistema`)
-    if (usa.windows) add('parametros', /^[A-Za-z][A-Za-z0-9]*$/.test(p.varWindows.trim()), `Parâmetro “${n}”: variável do PowerShell só com letras e números`)
-    if (usa.linux) add('parametros', /^[A-Z][A-Z0-9_]*$/.test(p.varLinux.trim()), `Parâmetro “${n}”: variável do Bash em MAIÚSCULAS`)
-    for (const v of r.variantes) {
-      const variavel = v.os === 'windows' ? p.varWindows.trim() : p.varLinux.trim()
-      if (!usa[v.os]) continue
-      const como = v.os === 'windows' ? `$${variavel} dentro de param( )` : `${variavel}="\${${variavel}:-}"`
-      add('parametros', variaveisDoScript(v.os, v.conteudo).has(variavel), `Parâmetro “${n}”: o script ${nomeV(v)} declara ${como}`)
-    }
+  // Parametros: a mesma validacao dos metadados que o CI faz em cada script.
+  const diag = diagnosticar(r)
+  for (const dv of diag.variantes) {
+    for (const g of dv.itens) if (g.nivel === 'erro') add('parametros', false, `${nomeV(dv.variante)}: ${g.texto}`)
+  }
+  for (const g of diag.entre) if (g.nivel === 'erro') add('parametros', false, g.texto)
+  if (!c.some((x) => x.aba === 'parametros')) {
+    const total = diag.variantes.reduce((n, dv) => n + dv.parametros.length, 0)
+    add('parametros', true, total ? 'Metadados dos parâmetros conferem com as variáveis dos scripts' : 'Nenhum parâmetro declarado nos scripts')
   }
 
   add('envio', r.autor.trim().length >= 2, 'Seu nome, para constar no pedido de revisão')

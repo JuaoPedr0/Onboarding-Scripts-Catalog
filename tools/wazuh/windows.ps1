@@ -1,3 +1,23 @@
+# @onboarding:begin
+# {
+#   "schemaVersion": 1,
+#   "parameters": [
+#     { "name": "manager", "variable": "Manager", "type": "host", "required": true, "description": "IP ou FQDN do Wazuh manager", "example": "wazuh.exemplo.local", "aliases": ["wazuh_manager"] },
+#     { "name": "group", "variable": "AgentGroup", "type": "list", "required": false, "description": "Grupo(s) do agente no manager, separados por vírgula. Vazio deixa só no grupo padrão", "example": "Windows,Hosts_HyperV", "regex": "^[A-Za-z0-9._-]{1,128}$", "aliases": ["groups"] },
+#     { "name": "version", "variable": "WazuhVersion", "type": "string", "required": false, "default": "latest", "description": "Versão do agente: latest, X.Y.Z ou X.Y.Z-R", "regex": "^(latest|\\d+\\.\\d+\\.\\d+(-\\d+)?)$", "aliases": ["wazuh_version"] },
+#     { "name": "name", "variable": "AgentName", "type": "string", "required": false, "description": "Nome do agente no manager. Vazio usa o nome da máquina", "regex": "^[A-Za-z0-9._-]{1,64}$", "aliases": ["agent_name"] },
+#     { "name": "protocol", "variable": "Protocol", "type": "enum", "required": false, "default": "tcp", "description": "Protocolo de comunicação com o manager", "options": [{"value":"tcp","description":"Padrão, recomendado"},{"value":"udp","description":"Só se o manager estiver configurado em UDP"}] },
+#     { "name": "manager_port", "variable": "ManagerPort", "type": "int", "required": false, "default": 1514, "description": "Porta de comunicação do agente com o manager", "min": 1, "max": 65535 },
+#     { "name": "enroll_port", "variable": "EnrollPort", "type": "int", "required": false, "default": 1515, "description": "Porta de enrollment (authd)", "min": 1, "max": 65535 },
+#     { "name": "force", "variable": "Force", "type": "bool", "required": false, "description": "Força reinstalação limpa mesmo com o agente já conforme" },
+#     { "name": "preserve_keys", "variable": "PreserveKeys", "type": "bool", "required": false, "description": "Mantém o client.keys atual, sem gerar novo registro no manager" },
+#     { "name": "skip_connectivity", "variable": "SkipConnectivityCheck", "type": "bool", "required": false, "description": "Pula o teste de portas antes de mexer no host" },
+#     { "name": "skip_signature", "variable": "SkipSignatureCheck", "type": "bool", "required": false, "description": "Pula a validação da assinatura do MSI" },
+#     { "name": "password", "variable": "RegistrationPassword", "type": "secret", "required": false, "description": "Senha de enrollment do manager (authd). Em branco quando o manager não exige senha" }
+#   ]
+# }
+# @onboarding:end
+
 # ============================================================
 #  WAZUH AGENT - PROVISIONAMENTO WINDOWS
 #  Codigos: 0 = ok | 1 = erro | 2 = atencao (verificar)

@@ -1,3 +1,16 @@
+# @onboarding:begin
+# {
+#   "schemaVersion": 1,
+#   "parameters": [
+#     { "name": "zabbix_server", "variable": "ZabbixServer", "type": "host", "required": true, "description": "Endereço do servidor ou proxy Zabbix (SERVER e SERVERACTIVE)", "example": "zabbix.exemplo.local" },
+#     { "name": "metadata", "variable": "Metadata", "type": "string", "required": true, "description": "HostMetadata usado nas regras de autorregistro", "example": "Windows", "regex": "^[A-Za-z0-9 ._:,;=-]{1,255}$" },
+#     { "name": "hostname", "variable": "Hostname", "type": "string", "required": false, "description": "Nome do host no Zabbix. Vazio usa o nome da máquina", "example": "SRV-APP01", "regex": "^[A-Za-z0-9._-]{1,128}$" },
+#     { "name": "version", "variable": "VersionAgent", "type": "string", "required": false, "default": "7.4", "description": "Versão do agente: major.minor (7.4 = última do branch) ou completa (7.4.13)", "regex": "^\\d+\\.\\d+(\\.\\d+)?$" },
+#     { "name": "listen_port", "variable": "ListenPort", "type": "int", "required": false, "default": 10050, "description": "Porta de escuta do agente (liberada no firewall)", "min": 1, "max": 65535 }
+#   ]
+# }
+# @onboarding:end
+
 <#
 .SYNOPSIS
     Instalacao nao-interativa do Zabbix Agent 2 no Windows (servido via webhook n8n).

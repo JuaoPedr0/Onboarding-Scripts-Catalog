@@ -16,11 +16,13 @@ da URL e entrega o script pronto para o host.
 ```
 tools/<slug>/tool.json  --+
 tools/<slug>/windows.ps1  +--> npm run build --> catalog.json --> tag vX.Y.Z --> n8n --> host
-tools/<slug>/linux.sh   --+        (CI valida tudo)             (release) --> GitHub Pages
+tools/<slug>/linux.sh   --+   (le o bloco # @onboarding     (release) --> GitHub Pages
+                               de cada script; CI valida)
 ```
 
 - **`tools/<slug>/`**: uma pasta por ferramenta, com `tool.json` (titulo,
-  categoria, variantes, parametros) e um script por variante. Uma variante e
+  categoria, variantes) e um script por variante. Os parametros sao
+  declarados dentro de cada script, no bloco `# @onboarding`. Uma variante e
   um script para um sistema especifico: `windows.ps1` e `linux.sh` sao as
   padrao; as demais seguem `<sistema>.<id>.<ext>`, como
   `windows.server-2025.ps1` ou `linux.rhel.sh`, e sao pedidas com
@@ -37,6 +39,9 @@ tools/<slug>/linux.sh   --+        (CI valida tudo)             (release) --> Gi
   no GitHub Pages.
 - **`lib/render.js`**: o motor que valida a query string e monta o script
   entregue. E o mesmo codigo do no "Resolver parametros" do workflow.
+- **`web/src/lib/metadados.ts`**: le, valida e regrava o bloco
+  `# @onboarding`. E a mesma implementacao no editor da pagina e no
+  `npm run build`.
 
 ## Usar
 
@@ -73,10 +78,75 @@ vieram na URL; o resto usa o default do proprio script.
 
 Valor invalido nao entrega script: a resposta e um script que so imprime o erro e sai com codigo 1.
 
+## Declarar parametros no script
+
+O script e a fonte dos parametros. No inicio do arquivo (no Bash, logo apos o
+shebang) fica um bloco de comentarios com JSON, um parametro por linha:
+
+```powershell
+# @onboarding:begin
+# {
+#   "schemaVersion": 1,
+#   "parameters": [
+#     { "name": "manager", "variable": "Manager", "type": "host", "required": true, "description": "IP ou FQDN do manager" },
+#     { "name": "protocol", "variable": "Protocol", "type": "enum", "default": "tcp", "options": ["tcp", "udp"] },
+#     { "name": "password", "variable": "RegistrationPassword", "type": "secret", "description": "Senha de enrollment" }
+#   ]
+# }
+# @onboarding:end
+param(
+    [string] $Manager = '',
+    [string] $Protocol = 'tcp',
+    [string] $RegistrationPassword = ''
+)
+```
+
+| Campo | Para que serve |
+| --- | --- |
+| `name` | nome na URL e no formulario (minusculas, numeros e `_`) |
+| `variable` | variavel do script: nome dentro de `param( )` no PowerShell, `VAR="${VAR:-}"` no Bash |
+| `type` | `string`, `host`, `int`, `bool`, `enum`, `list` ou `secret` (padrao `string`) |
+| `required`, `default`, `description`, `example` | obrigatoriedade, padrao (o mesmo do script), texto e exemplo do campo |
+| `regex`, `min`, `max`, `options` | validacao: regex (`string`/`list`), limites (`int`), opcoes (`enum`) |
+| `aliases` | outros nomes aceitos na URL |
+| `sensitive` | marca dado sensivel; so e aceito junto de `"type": "secret"` |
+
+`npm run build` (e o editor da pagina, na secao Diagnostico) conferem o bloco
+contra o script: parametro que aponta para variavel inexistente e erro;
+variavel do script sem metadados e aviso (ela nao aparece no catalogo, e o
+editor oferece "Declarar" sem inventar tipo nem obrigatoriedade); tipo
+diferente entre variantes do mesmo sistema e erro; parametro que so existe
+em um sistema e informado. Ferramenta antiga, com `parametros` no
+`tool.json` e sem bloco, continua funcionando; ao abri-la no editor os
+parametros sao passados para os blocos.
+
+Para acrescentar um parametro: declare a variavel no script, acrescente a
+linha no bloco, `npm run build && npm test`, pull request, tag. Nao ha outro
+arquivo para editar.
+
+## Segredos
+
+Um parametro `secret` (senha, token) nunca vai na URL do comando. No catalogo:
+
+1. O campo e mascarado; o valor fica so na memoria da pagina (nada de URL,
+   `localStorage` ou rascunho) e nao aparece no terminal de pre-visualizacao.
+2. Ao copiar o comando, a pagina envia o valor por HTTPS POST (no corpo) ao
+   n8n, que o guarda no Redis com validade de 15 minutos e devolve uma
+   referencia aleatoria. O comando copiado leva so `&cred=<referencia>`, e o
+   campo e limpo.
+3. O script entregue ao host troca a referencia pelo valor numa chamada HTTPS
+   propria. O n8n entrega uma unica vez e apaga; a referencia so vale para a
+   mesma ferramenta, sistema e variante para que foi emitida. No host o valor
+   entra direto na variavel do script, sem passar por linha de comando.
+
+Segredo enviado na URL e recusado pelo motor. Para executar sem o catalogo,
+passe o valor direto ao script (`-RegistrationPassword`, variavel de ambiente).
+Segredo nao tem `default` nem `example`: o build recusa.
+
 ## Criar ou editar pelo catalogo
 
 A pagina tem um editor ("Novo script" e "Editar"): preenche-se a ferramenta,
-as variantes e os parametros, e o envio vira um pull request aberto por uma
+as variantes e os parametros (gravados no bloco de cada script), e o envio vira um pull request aberto por uma
 conta-robo, sem acesso de escrita a este repositorio. Nada entra no catalogo
 antes de o administrador revisar, fazer o merge e publicar uma tag.
 

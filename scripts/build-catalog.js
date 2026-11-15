@@ -9,6 +9,8 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+// Leitura e validacao dos metadados: a mesma implementacao que a pagina usa.
+const meta = require('../web/src/lib/metadados.ts');
 
 const ROOT = path.resolve(__dirname, '..');
 const TOOLS = path.join(ROOT, 'tools');
@@ -25,15 +27,6 @@ const PROIBIDO = [
 /** Nome do arquivo de uma variante: windows.ps1, linux.rhel.sh ... */
 const arquivoDe = (v) => (v.id === 'padrao' ? `${v.os}.${EXT[v.os]}` : `${v.os}.${v.id}.${EXT[v.os]}`);
 
-// Variaveis declaradas no script, para conferir com "var" do tool.json.
-function varsDoScript(os, texto) {
-  if (os === 'windows') {
-    const m = texto.match(/^param\s*\(([\s\S]*?)^\)/m);
-    return new Set(m ? [...m[1].matchAll(/\$([A-Za-z][A-Za-z0-9]*)/g)].map((x) => x[1]) : []);
-  }
-  return new Set([...texto.matchAll(/"\$\{([A-Z][A-Z0-9_]*):-/g)].map((x) => x[1]));
-}
-
 function arquivosDe(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -43,9 +36,10 @@ function arquivosDe(dir) {
   });
 }
 
-/** Valida tudo e devolve { catalogo, erros }. */
+/** Valida tudo e devolve { catalogo, erros, avisos }. */
 function gerar() {
   const erros = [];
+  const avisos = [];
   const err = (onde, msg) => erros.push(`${onde}: ${msg}`);
   const proibidos = (rel, texto) => texto.split('\n')
     .forEach((l, i) => PROIBIDO.forEach(([re, oque]) => { if (re.test(l)) err(`${rel}:${i + 1}`, oque); }));
@@ -77,17 +71,7 @@ function gerar() {
     proibidos(`${onde}/tool.json`, bruto);
     if (tool.slug !== dir) err(onde, `slug '${tool.slug}' difere do nome da pasta`);
 
-    const sistemas = new Set(tool.variantes.map((v) => v.os));
-    const nomes = new Set();
-    for (const p of tool.parametros) {
-      for (const n of [p.nome, ...(p.aliases || [])]) {
-        if (nomes.has(n) || ['script', 'os', 'variante'].includes(n)) err(onde, `nome/alias de parametro repetido ou reservado: ${n}`);
-        nomes.add(n);
-      }
-      if (p.tipo === 'enum' && !(p.valores || []).length) err(onde, `parametro enum '${p.nome}' sem valores`);
-      for (const so of Object.keys(p.var)) if (!sistemas.has(so)) err(onde, `parametro '${p.nome}' cita sistema sem variante: ${so}`);
-    }
-
+    const metadados = []; // por variante, para comparar entre elas
     const esperados = new Set(['tool.json']);
     const vistos = new Set();
     for (const v of tool.variantes) {
@@ -106,16 +90,20 @@ function gerar() {
       if (texto.includes('@@')) err(rel, 'contem @@placeholder@@; use parametros nativos');
       if (v.os === 'linux' && !texto.startsWith('#!')) err(rel, 'sem shebang');
       proibidos(rel, texto);
-      const declaradas = varsDoScript(v.os, texto);
-      const parametros = [];
-      for (const p of tool.parametros) {
-        if (!p.var[v.os]) continue;
-        if (!declaradas.has(p.var[v.os])) err(rel, `variavel '${p.var[v.os]}' (parametro '${p.nome}') nao declarada no bloco de parametros`);
-        const { var: variavel, porPlataforma, ...resto } = p;
-        const final = { ...resto, ...((porPlataforma || {})[v.os] || {}), var: variavel[v.os] };
-        if (final.regex) { try { new RegExp(final.regex); } catch (e) { err(onde, `regex invalida em '${p.nome}'`); } }
-        parametros.push(final);
+      // Os parametros vem do bloco @onboarding do proprio script. Script sem
+      // bloco usa o campo "parametros" do tool.json (formato anterior).
+      let leitura = meta.lerBloco(texto);
+      const legado = leitura.inicio === undefined;
+      if (legado) {
+        leitura = { bloco: { schemaVersion: 1, parameters: (tool.parametros || []).map((p) => meta.deLegado(p, v.os)).filter(Boolean) } };
       }
+      for (const g of meta.validarBloco(leitura, v.os, texto)) {
+        if (g.nivel === 'erro') err(rel, g.texto);
+        else if (!legado) avisos.push(`${rel}: ${g.texto}`);
+      }
+      const declarados = leitura.bloco ? leitura.bloco.parameters : [];
+      metadados.push({ rotulo: `${v.os}/${v.id}`, os: v.os, parametros: declarados });
+      const parametros = declarados.map(meta.paraCatalogo);
       if (tool.ativo) {
         itens.push({
           slug: tool.slug, os: v.os, variante: v.id, rotulo: v.rotulo, padrao,
@@ -125,6 +113,10 @@ function gerar() {
           parametros,
         });
       }
+    }
+    for (const g of meta.compararVariantes(metadados)) {
+      if (g.nivel === 'erro') err(onde, g.texto);
+      else if (g.nivel === 'aviso') avisos.push(`${onde}: ${g.texto}`);
     }
     // Arquivo que nenhuma variante usa e sobra: script esquecido ou nome fora da convencao.
     for (const f of fs.readdirSync(path.join(TOOLS, dir))) {
@@ -139,13 +131,14 @@ function gerar() {
 
   const ordemSo = { windows: 0, linux: 1 };
   itens.sort((a, b) => a.ordem - b.ordem || a.slug.localeCompare(b.slug) || ordemSo[a.os] - ordemSo[b.os] || (b.padrao - a.padrao));
-  return { catalogo: { versao: 2, itens }, erros };
+  return { catalogo: { versao: 2, itens }, erros, avisos };
 }
 
 module.exports = { gerar, arquivoDe, PROIBIDO };
 
 if (require.main === module) {
-  const { catalogo, erros } = gerar();
+  const { catalogo, erros, avisos } = gerar();
+  if (avisos.length && !process.env.RENDER_QUIET) console.error(`${avisos.length} aviso(s):\n` + avisos.map((e) => '  - ' + e).join('\n'));
   if (erros.length) {
     console.error(`${erros.length} problema(s):\n` + erros.map((e) => '  - ' + e).join('\n'));
     process.exit(1);

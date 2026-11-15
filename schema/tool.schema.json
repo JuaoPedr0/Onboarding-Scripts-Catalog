@@ -9,8 +9,7 @@
     "categoria",
     "ordem",
     "ativo",
-    "variantes",
-    "parametros"
+    "variantes"
   ],
   "properties": {
     "$schema": {
@@ -54,7 +53,8 @@
       "type": "array",
       "items": {
         "$ref": "#/definitions/parametro"
-      }
+      },
+      "description": "FORMATO ANTERIOR. Os parametros agora sao declarados no bloco \"# @onboarding:begin ... end\" de cada script; este campo so e lido para scripts que ainda nao tem o bloco."
     }
   },
   "definitions": {

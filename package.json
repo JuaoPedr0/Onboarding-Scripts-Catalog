@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node scripts/build-catalog.js",
 
-    "test": "node --test tests/render.test.js tests/site.test.js",
+    "test": "node --test tests/render.test.js tests/site.test.js tests/metadados.test.js",
     "render": "node scripts/render.js",
     "site": "node scripts/build-site.js",
     "site:dev": "npm run dev --prefix web"

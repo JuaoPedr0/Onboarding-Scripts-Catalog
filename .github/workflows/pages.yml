@@ -56,6 +56,7 @@ jobs:
         env:
           ONBOARDING_BASE_URL: ${{ vars.ONBOARDING_BASE_URL }}
           ONBOARDING_SUBMIT_URL: ${{ vars.ONBOARDING_SUBMIT_URL }}
+          ONBOARDING_CREDENTIAL_URL: ${{ vars.ONBOARDING_CREDENTIAL_URL }}
           SITE_TAG: ${{ steps.tag.outputs.tag }}
           SITE_PUBLICADO: ${{ steps.tag.outputs.publicado }}
         run: node scripts/build-site.js --strict
