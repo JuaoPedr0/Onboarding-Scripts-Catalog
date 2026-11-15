@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { Search, X } from 'lucide-react'
+import { Plus, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,10 +13,11 @@ interface Props {
   ferramentas: Ferramenta[]
   selecionada?: string
   onSelecionar: (slug: string) => void
+  onNovo: () => void
   atalho?: boolean
 }
 
-export function ListaFerramentas({ id, ferramentas, selecionada, onSelecionar, atalho }: Props) {
+export function ListaFerramentas({ id, ferramentas, selecionada, onSelecionar, onNovo, atalho }: Props) {
   const [busca, setBusca] = useState('')
   const campo = useRef<HTMLInputElement>(null)
 
@@ -37,7 +38,7 @@ export function ListaFerramentas({ id, ferramentas, selecionada, onSelecionar, a
     const termo = busca.trim().toLowerCase()
     const visiveis = ferramentas.filter((f) => {
       if (!termo) return true
-      const texto = [f.titulo, f.categoria, f.slug, ...SISTEMAS.map((s) => f.itens[s]?.descricao ?? '')].join(' ')
+      const texto = [f.titulo, f.categoria, f.slug, ...SISTEMAS.flatMap((s) => (f.itens[s] ?? []).flatMap((i) => [i.descricao, i.rotulo]))].join(' ')
       return texto.toLowerCase().includes(termo)
     })
     const mapa = new Map<string, Ferramenta[]>()
@@ -97,13 +98,19 @@ export function ListaFerramentas({ id, ferramentas, selecionada, onSelecionar, a
           ))}
         </nav>
       )}
+
+      <Button variant="outline" onClick={onNovo} className="justify-start gap-2 border-dashed bg-transparent text-muted-foreground hover:text-foreground">
+        <Plus />
+        Novo script
+      </Button>
     </div>
   )
 }
 
 function ItemFerramenta({ id, ferramenta: f, ativa, onClick }: { id: string; ferramenta: Ferramenta; ativa: boolean; onClick: () => void }) {
   const [hover, setHover] = useState(false)
-  const sistemas = SISTEMAS.filter((s) => f.itens[s]).map((s) => NOME_SISTEMA[s])
+  const sistemas = SISTEMAS.filter((s) => f.itens[s]?.length).map((s) => NOME_SISTEMA[s])
+  const variantes = SISTEMAS.reduce((n, s) => n + (f.itens[s]?.length ?? 0), 0)
   return (
     <button
       type="button"
@@ -133,7 +140,10 @@ function ItemFerramenta({ id, ferramenta: f, ativa, onClick }: { id: string; fer
       </span>
       <span className="relative min-w-0">
         <span className="block truncate text-sm font-medium">{f.titulo}</span>
-        <span className="block truncate text-xs text-muted-foreground">{sistemas.join(' e ')}</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {sistemas.join(' e ')}
+          {variantes > sistemas.length && `, ${variantes} variantes`}
+        </span>
       </span>
     </button>
   )

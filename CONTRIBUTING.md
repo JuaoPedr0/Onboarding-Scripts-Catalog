@@ -12,7 +12,7 @@ npm ci --prefix web    # so para mexer na pagina do catalogo
 1. Crie um branch e edite `tools/<slug>/windows.ps1` ou `linux.sh`.
 2. Rode localmente:
    ```
-   npm run build     # valida tool.json e regenera catalog.json
+   npm run build     # valida tool.json e os scripts (gera catalog.json, que nao e versionado)
    npm test          # motor de renderizacao
    shellcheck tools/*/*.sh
    pwsh tests/ps-check.ps1
@@ -29,11 +29,13 @@ npm ci --prefix web    # so para mexer na pagina do catalogo
    Os componentes em `web/src/components/ui/` vem do shadcn/ui; a tela em si
    esta em `web/src/components/`. Se mudar `web/src/lib/validar.ts`, mude
    tambem `validar` em `lib/render.js`: um teste compara os dois.
-5. Abra o pull request. O `catalog.json` regenerado vai no mesmo commit.
+5. Abra o pull request.
 
 ## Adicionar uma ferramenta
 
-1. Crie `tools/<slug>/` com `tool.json` e um script por SO.
+1. Crie `tools/<slug>/` com `tool.json` e um script por variante
+   (`windows.ps1`, `linux.sh`, `linux.rhel.sh`...). Pelo editor da pagina
+   isso sai pronto, como pull request.
 2. Declare os parametros no bloco de parametros do script (regras abaixo) e em `tool.json`.
 3. `npm run build`, teste, pull request.
 
@@ -46,7 +48,8 @@ npm ci --prefix web    # so para mexer na pagina do catalogo
 - **Bash**: cada parametro e uma variavel de ambiente com default,
   `VAR="${VAR:-padrao}"`. Listas chegam em CSV numa variavel `*_CSV`.
   Booleanos sao `true`/`false`.
-- O nome da variavel em `tool.json` (`var.windows` / `var.linux`) tem de existir no script; o CI confere.
+- O nome da variavel em `tool.json` (`var.windows` / `var.linux`) tem de existir em todas as variantes daquele sistema; o CI confere.
+- Toda variante listada em `tool.json` tem seu arquivo, e nao sobra arquivo sem variante.
 - Sem interacao (`Read-Host`, `read`): os scripts rodam em automacao.
 - Idempotentes: rodar duas vezes nao pode quebrar o host.
 

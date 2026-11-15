@@ -55,6 +55,7 @@ jobs:
       - name: Gerar pagina
         env:
           ONBOARDING_BASE_URL: ${{ vars.ONBOARDING_BASE_URL }}
+          ONBOARDING_SUBMIT_URL: ${{ vars.ONBOARDING_SUBMIT_URL }}
           SITE_TAG: ${{ steps.tag.outputs.tag }}
           SITE_PUBLICADO: ${{ steps.tag.outputs.publicado }}
         run: node scripts/build-site.js --strict

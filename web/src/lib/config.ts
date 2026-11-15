@@ -22,6 +22,12 @@ export interface Parametro {
 export interface Item {
   slug: string
   os: Sistema
+  /** Id da variante (valor de ?variante=). */
+  variante: string
+  /** Nome da variante mostrado na tela, ex.: Windows Server 2025. */
+  rotulo: string
+  /** Entregue quando a URL nao traz variante=. */
+  padrao: boolean
   titulo: string
   categoria: string
   ordem: number
@@ -36,6 +42,8 @@ export interface Config {
   tag: string
   publicado: string
   base: string
+  /** Webhook que recebe os envios do editor; vazio = envio desligado. */
+  envio: string
   catalogo: { versao: number; itens: Item[] }
 }
 
@@ -44,7 +52,8 @@ export interface Ferramenta {
   titulo: string
   categoria: string
   ordem: number
-  itens: Partial<Record<Sistema, Item>>
+  /** Variantes por sistema; a padrao vem primeiro. */
+  itens: Partial<Record<Sistema, Item[]>>
 }
 
 export function lerConfig(): Config {
@@ -52,7 +61,7 @@ export function lerConfig(): Config {
   return JSON.parse(el?.textContent ?? '{}') as Config
 }
 
-// Uma ferramenta por slug, com um item por sistema operacional.
+// Uma ferramenta por slug, com as variantes de cada sistema operacional.
 export function agrupar(itens: Item[]): Ferramenta[] {
   const mapa = new Map<string, Ferramenta>()
   for (const i of itens) {
@@ -61,7 +70,9 @@ export function agrupar(itens: Item[]): Ferramenta[] {
       f = { slug: i.slug, titulo: i.titulo, categoria: i.categoria, ordem: i.ordem, itens: {} }
       mapa.set(i.slug, f)
     }
-    f.itens[i.os] = i
+    const lista = (f.itens[i.os] ??= [])
+    if (i.padrao) lista.unshift(i)
+    else lista.push(i)
   }
   return [...mapa.values()].sort((a, b) => a.ordem - b.ordem || a.titulo.localeCompare(b.titulo))
 }

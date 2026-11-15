@@ -5,16 +5,20 @@
   "categoria": "Monitoramento",
   "ordem": 10,
   "ativo": true,
-  "plataformas": {
-    "windows": {
-      "arquivo": "windows.ps1",
+  "variantes": [
+    {
+      "os": "windows",
+      "id": "padrao",
+      "rotulo": "Padrão",
       "descricao": "Agente de monitoramento com autorregistro. Instala silencioso, aguarda o Windows Installer, libera a porta no firewall e valida o serviço."
     },
-    "linux": {
-      "arquivo": "linux.sh",
+    {
+      "os": "linux",
+      "id": "padrao",
+      "rotulo": "Padrão",
       "descricao": "Agente de monitoramento com autorregistro. Detecta a distro (apt/dnf), configura o repositório oficial e sobe o serviço."
     }
-  },
+  ],
   "parametros": [
     {
       "nome": "zabbix_server",

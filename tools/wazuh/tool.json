@@ -5,16 +5,20 @@
   "categoria": "Segurança",
   "ordem": 20,
   "ativo": true,
-  "plataformas": {
-    "windows": {
-      "arquivo": "windows.ps1",
+  "variantes": [
+    {
+      "os": "windows",
+      "id": "padrao",
+      "rotulo": "Padrão",
       "descricao": "Agente de segurança/EDR com enrollment no manager. Idempotente, testa conectividade antes de mexer no host e grava ossec.conf mínimo (config operacional vem dos grupos)."
     },
-    "linux": {
-      "arquivo": "linux.sh",
+    {
+      "os": "linux",
+      "id": "padrao",
+      "rotulo": "Padrão",
       "descricao": "Agente de segurança/EDR com enrollment no manager. Configura o repositório (apt/yum), instala o pacote e valida o registro pelo client.keys."
     }
-  },
+  ],
   "parametros": [
     {
       "nome": "manager",

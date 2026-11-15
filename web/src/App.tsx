@@ -3,6 +3,7 @@ import { CircleCheck, GitBranch, Info, OctagonX, TriangleAlert } from 'lucide-re
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Toaster } from 'sonner'
 import { Cabecalho } from '@/components/Cabecalho'
+import { Editor } from '@/components/Editor'
 import { Fundo } from '@/components/Fundo'
 import { ListaFerramentas } from '@/components/ListaFerramentas'
 import { PainelFerramenta } from '@/components/PainelFerramenta'
@@ -12,15 +13,29 @@ import type { Valores } from '@/lib/comando'
 import { agrupar, SISTEMAS, type Config, type Ferramenta, type Sistema } from '@/lib/config'
 import { useTema } from '@/lib/tema'
 
+type Rota =
+  | { tela: 'catalogo'; slug?: string; os: Sistema; variante: string }
+  | { tela: 'editor'; slug?: string }
+
 // Sistema de quem esta abrindo a pagina, para ja abrir na aba certa.
 const sistemaLocal = (): Sistema => (/Windows/i.test(navigator.userAgent) ? 'windows' : 'linux')
 
-function lerRota(ferramentas: Ferramenta[]): { slug?: string; os: Sistema } {
-  const [, slug, os] = location.hash.split('/')
-  const f = ferramentas.find((x) => x.slug === slug) ?? ferramentas[0]
-  const pedido = SISTEMAS.includes(os as Sistema) ? (os as Sistema) : sistemaLocal()
-  return { slug: f?.slug, os: f?.itens[pedido] ? pedido : (SISTEMAS.find((s) => f?.itens[s]) ?? pedido) }
+function destino(f: Ferramenta | undefined, os: Sistema, variante?: string): Rota {
+  const sistema = f?.itens[os]?.length ? os : (SISTEMAS.find((s) => f?.itens[s]?.length) ?? os)
+  const lista = f?.itens[sistema] ?? []
+  return { tela: 'catalogo', slug: f?.slug, os: sistema, variante: (lista.find((v) => v.variante === variante) ?? lista[0])?.variante ?? 'padrao' }
 }
+
+function lerRota(ferramentas: Ferramenta[]): Rota {
+  const [, a, b, c] = location.hash.split('/')
+  if (a === 'novo') return { tela: 'editor' }
+  if (a === 'editar' && ferramentas.some((f) => f.slug === b)) return { tela: 'editor', slug: b }
+  const f = ferramentas.find((x) => x.slug === a) ?? ferramentas[0]
+  return destino(f, SISTEMAS.includes(b as Sistema) ? (b as Sistema) : sistemaLocal(), c)
+}
+
+const hashDe = (r: Rota) =>
+  r.tela === 'editor' ? (r.slug ? `#/editar/${r.slug}` : '#/novo') : `#/${r.slug}/${r.os}${r.variante === 'padrao' ? '' : `/${r.variante}`}`
 
 export function App({ config }: { config: Config }) {
   const ferramentas = useMemo(() => agrupar(config.catalogo.itens), [config])
@@ -43,20 +58,36 @@ export function App({ config }: { config: Config }) {
     return () => removeEventListener('hashchange', mudou)
   }, [ferramentas])
 
+  const navegar = useCallback((r: Rota) => {
+    history.replaceState(null, '', hashDe(r))
+    setRota(r)
+    scrollTo({ top: 0 })
+  }, [])
+
+  const osAtual = rota.tela === 'catalogo' ? rota.os : sistemaLocal()
   const ir = useCallback(
-    (slug: string, os?: Sistema) => {
-      const f = ferramentas.find((x) => x.slug === slug)
-      if (!f) return
-      const pedido = os ?? rota.os
-      const destino = f.itens[pedido] ? pedido : SISTEMAS.find((s) => f.itens[s])!
-      history.replaceState(null, '', `#/${slug}/${destino}`)
-      setRota({ slug, os: destino })
-    },
-    [ferramentas, rota.os],
+    (slug: string, os?: Sistema, variante?: string) => navegar(destino(ferramentas.find((f) => f.slug === slug), os ?? osAtual, variante)),
+    [ferramentas, navegar, osAtual],
   )
 
-  const ferramenta = ferramentas.find((f) => f.slug === rota.slug)
-  const chave = `${rota.slug}/${rota.os}`
+  const ferramenta = rota.tela === 'catalogo' ? ferramentas.find((f) => f.slug === rota.slug) : undefined
+  const chave = rota.tela === 'catalogo' ? `${rota.slug}/${rota.os}/${rota.variante}` : ''
+  const lista = (id: string, aoEscolher?: () => void) => (
+    <ListaFerramentas
+      id={id}
+      ferramentas={ferramentas}
+      selecionada={rota.slug}
+      onSelecionar={(s) => {
+        ir(s)
+        aoEscolher?.()
+      }}
+      onNovo={() => {
+        navegar({ tela: 'editor' })
+        aoEscolher?.()
+      }}
+      atalho={id === 'lateral'}
+    />
+  )
 
   return (
     <MotionConfig reducedMotion="user">
@@ -67,19 +98,28 @@ export function App({ config }: { config: Config }) {
 
           <div className="mx-auto flex w-full max-w-[1440px] flex-1">
             <aside className="hidden w-72 shrink-0 border-r bg-background/50 backdrop-blur-sm lg:block">
-              <div className="sticky top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto p-4">
-                <ListaFerramentas id="lateral" ferramentas={ferramentas} selecionada={rota.slug} onSelecionar={(s) => ir(s)} atalho />
-              </div>
+              <div className="sticky top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto p-4">{lista('lateral')}</div>
             </aside>
 
             <main className="min-w-0 flex-1 px-4 pt-5 pb-28 sm:px-6 lg:px-8 lg:pt-8 xl:pb-12">
-              {ferramenta ? (
+              {rota.tela === 'editor' ? (
+                <Editor
+                  key={rota.slug ?? 'novo'}
+                  config={config}
+                  ferramentas={ferramentas}
+                  slug={rota.slug}
+                  onFechar={() => (rota.slug ? ir(rota.slug) : navegar(lerRotaInicial(ferramentas)))}
+                />
+              ) : ferramenta ? (
                 <PainelFerramenta
                   key={ferramenta.slug}
                   config={config}
                   ferramenta={ferramenta}
                   os={rota.os}
+                  variante={rota.variante}
                   onOs={(os) => ir(ferramenta.slug, os)}
+                  onVariante={(v) => ir(ferramenta.slug, rota.os, v)}
+                  onEditar={() => navegar({ tela: 'editor', slug: ferramenta.slug })}
                   valores={valores[chave] ?? {}}
                   onValores={(v) => setValores((t) => ({ ...t, [chave]: v }))}
                   onTrocar={() => setMenu(true)}
@@ -87,9 +127,7 @@ export function App({ config }: { config: Config }) {
               ) : (
                 <div className="mx-auto mt-16 max-w-md rounded-xl border border-dashed p-8 text-center">
                   <p className="font-medium">Nenhuma ferramenta nesta release</p>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    Adicione uma pasta em <span className="font-mono">tools/</span> no repositório e publique uma nova tag.
-                  </p>
+                  <p className="mt-1.5 text-sm text-muted-foreground">Use “Novo script” para enviar a primeira.</p>
                 </div>
               )}
             </main>
@@ -103,15 +141,7 @@ export function App({ config }: { config: Config }) {
               <DrawerDescription>Escolha o que instalar no host.</DrawerDescription>
             </DrawerHeader>
             <div className="overflow-y-auto px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-              <ListaFerramentas
-                id="gaveta"
-                ferramentas={ferramentas}
-                selecionada={rota.slug}
-                onSelecionar={(s) => {
-                  ir(s)
-                  setMenu(false)
-                }}
-              />
+              {lista('gaveta', () => setMenu(false))}
               <a
                 href={`https://github.com/${config.repo}`}
                 target="_blank"
@@ -150,3 +180,5 @@ export function App({ config }: { config: Config }) {
     </MotionConfig>
   )
 }
+
+const lerRotaInicial = (ferramentas: Ferramenta[]): Rota => destino(ferramentas[0], sistemaLocal())

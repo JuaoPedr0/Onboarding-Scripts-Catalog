@@ -20,10 +20,15 @@ tools/<slug>/linux.sh   --+        (CI valida tudo)             (release) --> Gi
 ```
 
 - **`tools/<slug>/`**: uma pasta por ferramenta, com `tool.json` (titulo,
-  categoria, parametros) e um script por sistema operacional.
-- **`catalog.json`**: indice gerado, uma entrada por ferramenta + SO, com os
-  parametros ja resolvidos e o SHA-256 de cada script. E o unico arquivo que
-  o n8n precisa ler para montar a pagina e localizar um script.
+  categoria, variantes, parametros) e um script por variante. Uma variante e
+  um script para um sistema especifico: `windows.ps1` e `linux.sh` sao as
+  padrao; as demais seguem `<sistema>.<id>.<ext>`, como
+  `windows.server-2025.ps1` ou `linux.rhel.sh`, e sao pedidas com
+  `&variante=<id>` na URL.
+- **`catalog.json`**: indice gerado (`npm run build`), uma entrada por
+  ferramenta + sistema + variante, com os parametros ja resolvidos e o
+  SHA-256 de cada script. Nao e versionado: e gerado e anexado a cada
+  release, de onde o n8n o le para localizar um script.
 - **`web/`**: a pagina do catalogo (React, Tailwind e shadcn/ui). Mostra um
   formulario por ferramenta e monta o comando conforme os campos sao
   preenchidos, validando com as mesmas regras do motor. A cada release o
@@ -67,6 +72,13 @@ vieram na URL; o resto usa o default do proprio script.
 | Bash | atribuicoes logo apos o shebang | `WAZUH_MANAGER='wazuh.exemplo.local'` |
 
 Valor invalido nao entrega script: a resposta e um script que so imprime o erro e sai com codigo 1.
+
+## Criar ou editar pelo catalogo
+
+A pagina tem um editor ("Novo script" e "Editar"): preenche-se a ferramenta,
+as variantes e os parametros, e o envio vira um pull request aberto por uma
+conta-robo, sem acesso de escrita a este repositorio. Nada entra no catalogo
+antes de o administrador revisar, fazer o merge e publicar uma tag.
 
 ## Desenvolver
 

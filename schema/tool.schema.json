@@ -9,7 +9,7 @@
     "categoria",
     "ordem",
     "ativo",
-    "plataformas",
+    "variantes",
     "parametros"
   ],
   "properties": {
@@ -42,17 +42,12 @@
       "type": "boolean",
       "description": "false tira a ferramenta do catalogo sem apagar os arquivos."
     },
-    "plataformas": {
-      "type": "object",
-      "additionalProperties": false,
-      "minProperties": 1,
-      "properties": {
-        "windows": {
-          "$ref": "#/definitions/plataforma"
-        },
-        "linux": {
-          "$ref": "#/definitions/plataforma"
-        }
+    "variantes": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Um script por sistema e variante (ex.: Windows Server 2025, Red Hat). A primeira variante de cada sistema e a entregue quando a URL nao traz variante=.",
+      "items": {
+        "$ref": "#/definitions/variante"
       }
     },
     "parametros": {
@@ -63,17 +58,33 @@
     }
   },
   "definitions": {
-    "plataforma": {
+    "variante": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "arquivo",
+        "os",
+        "id",
+        "rotulo",
         "descricao"
       ],
       "properties": {
-        "arquivo": {
+        "os": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9._-]+\\.(ps1|sh)$"
+          "enum": [
+            "windows",
+            "linux"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+          "description": "Valor de ?variante= na URL. O arquivo e <os>.ps1/.sh para 'padrao' e <os>.<id>.ps1/.sh para as demais."
+        },
+        "rotulo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Nome mostrado no catalogo, ex.: Windows Server 2025."
         },
         "descricao": {
           "type": "string",
@@ -199,7 +210,7 @@
         },
         "var": {
           "type": "object",
-          "description": "Variavel do script que recebe o valor, por SO. O parametro so existe nos SOs listados aqui.",
+          "description": "Variavel do script que recebe o valor, por sistema. O parametro vale para todas as variantes dos sistemas listados aqui.",
           "additionalProperties": false,
           "minProperties": 1,
           "properties": {
