@@ -49,6 +49,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --prefix web
       - name: Gerar pagina
         env:
           ONBOARDING_BASE_URL: ${{ vars.ONBOARDING_BASE_URL }}

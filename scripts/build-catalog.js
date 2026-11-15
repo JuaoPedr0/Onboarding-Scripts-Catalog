@@ -93,10 +93,19 @@ for (const dir of slugs) {
 JSON.stringify(slugs.map((s) => fs.readFileSync(path.join(TOOLS, s, 'tool.json'), 'utf8'))).split('\\n')
   .forEach((l) => PROIBIDO.forEach(([re, oque]) => { if (re.test(l)) err('tool.json', `${oque}: ${l.trim().slice(0, 60)}`); }));
 
-// A pagina do catalogo e publica: o mesmo filtro vale para web/.
-for (const f of fs.existsSync(path.join(ROOT, 'web')) ? fs.readdirSync(path.join(ROOT, 'web')) : []) {
-  fs.readFileSync(path.join(ROOT, 'web', f), 'utf8').split('\n')
-    .forEach((l, i) => PROIBIDO.forEach(([re, oque]) => { if (re.test(l)) err(`web/${f}:${i + 1}`, oque); }));
+// A pagina do catalogo e publica: o mesmo filtro vale para o codigo de web/.
+function arquivosDe(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    if (e.name === 'node_modules' || e.name === 'package-lock.json') return [];
+    const p = path.join(dir, e.name);
+    return e.isDirectory() ? arquivosDe(p) : /\.(html|css|tsx?|jsx?|json|svg)$/.test(e.name) ? [p] : [];
+  });
+}
+for (const abs of arquivosDe(path.join(ROOT, 'web'))) {
+  const rel = path.relative(ROOT, abs).split(path.sep).join('/');
+  fs.readFileSync(abs, 'utf8').split('\n')
+    .forEach((l, i) => PROIBIDO.forEach(([re, oque]) => { if (re.test(l)) err(`${rel}:${i + 1}`, oque); }));
 }
 
 if (erros.length) {

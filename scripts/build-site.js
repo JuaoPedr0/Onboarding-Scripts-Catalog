@@ -1,53 +1,36 @@
 #!/usr/bin/env node
 'use strict';
-// Gera a página do catálogo (dist/site/index.html) a partir de
-// web/index.html + catalog.json. Usado pelo deploy do GitHub Pages.
+// Gera a pagina do catalogo em dist/site: compila o app de web/ (Vite) e
+// injeta o catalog.json, a tag e a URL do webhook. Usado pelo deploy do
+// GitHub Pages. As variaveis de ambiente estao em scripts/site-config.js.
 //
-// Variáveis de ambiente:
-//   ONBOARDING_BASE_URL  URL do webhook de onboarding (obrigatória com --strict)
-//   SITE_TAG             tag da release publicada (padrão: "local")
-//   SITE_PUBLICADO       data ISO da release (opcional)
-//   GITHUB_REPOSITORY    owner/repo (o Actions define sozinho)
-//
-//   node scripts/build-site.js            pré-visualização local
+//   node scripts/build-site.js            pre-visualizacao local
 //   node scripts/build-site.js --strict   falha se faltar a URL do webhook
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
+const { montarConfig, injetar } = require('./site-config');
 
 const ROOT = path.resolve(__dirname, '..');
+const WEB = path.join(ROOT, 'web');
 const OUT = path.join(ROOT, 'dist', 'site');
-const strict = process.argv.includes('--strict');
 
-const base = (process.env.ONBOARDING_BASE_URL || '').trim();
-if (strict && !base) {
-  console.error('ONBOARDING_BASE_URL vazia. Defina a variável do repositório em Settings → Secrets and variables → Actions → Variables.');
-  process.exit(1);
-}
-if (base && !/^https:\/\/[A-Za-z0-9.-]+(:\d+)?\/[A-Za-z0-9._~/-]*$/.test(base)) {
-  console.error(`ONBOARDING_BASE_URL inválida: ${base} (esperado https://host/caminho, sem query string)`);
+let config;
+try {
+  config = montarConfig(process.env, { strict: process.argv.includes('--strict') });
+} catch (e) {
+  console.error(e.message);
   process.exit(1);
 }
 
-const config = {
-  repo: process.env.GITHUB_REPOSITORY || 'JuaoPedr0/Onboarding-Scripts-Catalog',
-  tag: process.env.SITE_TAG || 'local',
-  publicado: process.env.SITE_PUBLICADO || '',
-  base: base || 'https://SEU-N8N/webhook/onboarding',
-  catalogo: JSON.parse(fs.readFileSync(path.join(ROOT, 'catalog.json'), 'utf8')),
-};
-
-const template = fs.readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
-const re = /(<script id="config" type="application\/json">)[\s\S]*?(<\/script>)/;
-if (!re.test(template)) {
-  console.error('web/index.html sem o bloco <script id="config" type="application/json">.');
+if (!fs.existsSync(path.join(WEB, 'node_modules'))) {
+  console.error('Dependencias da pagina ausentes. Rode: npm ci --prefix web');
   process.exit(1);
 }
-// "<" escapado: nenhum valor do catálogo consegue fechar a tag <script>.
-const json = JSON.stringify(config).replace(/</g, '\\u003c');
-const html = template.replace(re, (_, abre, fecha) => abre + json + fecha);
+execFileSync('npm', ['run', '-s', 'build'], { cwd: WEB, stdio: 'inherit', shell: process.platform === 'win32' });
 
-fs.mkdirSync(OUT, { recursive: true });
-fs.writeFileSync(path.join(OUT, 'index.html'), html);
+const index = path.join(OUT, 'index.html');
+fs.writeFileSync(index, injetar(fs.readFileSync(index, 'utf8'), config));
 fs.writeFileSync(path.join(OUT, 'catalog.json'), JSON.stringify(config.catalogo, null, 2) + '\n');
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
 console.log(`site gerado em dist/site (tag ${config.tag}, ${config.catalogo.itens.length} itens).`);

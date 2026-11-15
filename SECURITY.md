@@ -14,6 +14,10 @@ A pagina do catalogo no GitHub Pages e publica. A URL do webhook entra nela
 so na hora do deploy, pela variavel `ONBOARDING_BASE_URL`; o webhook deve
 continuar acessivel apenas pela rede interna.
 
+A pagina e compilada com dependencias de npm (React, Radix, Tailwind). Elas
+ficam travadas em `web/package-lock.json` e sao instaladas com `npm ci`;
+atualize-as por pull request, olhando o diff do lockfile.
+
 O CI (`npm run check`) recusa IPs privados, dominios internos e formatos comuns de token.
 
 ## Cadeia de entrega

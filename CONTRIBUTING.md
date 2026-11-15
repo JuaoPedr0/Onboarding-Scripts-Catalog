@@ -3,7 +3,8 @@
 ## Preparar
 
 ```
-npm ci
+npm ci                 # catalogo, motor e testes
+npm ci --prefix web    # so para mexer na pagina do catalogo
 ```
 
 ## Alterar um script
@@ -20,10 +21,14 @@ npm ci
    ```
    npm run -s render -- wazuh linux manager=wazuh.exemplo.local group=Linux | less
    ```
-4. Mudou a pagina (`web/index.html`)? Gere e abra no navegador:
+4. Mudou a pagina (`web/`)? Veja ao vivo, com recarga automatica:
    ```
-   npm run site      # grava dist/site/index.html
+   npm run site:dev   # abre em http://localhost:5173 com o catalog.json local
+   npm run site       # gera a versao final em dist/site
    ```
+   Os componentes em `web/src/components/ui/` vem do shadcn/ui; a tela em si
+   esta em `web/src/components/`. Se mudar `web/src/lib/validar.ts`, mude
+   tambem `validar` em `lib/render.js`: um teste compara os dois.
 5. Abra o pull request. O `catalog.json` regenerado vai no mesmo commit.
 
 ## Adicionar uma ferramenta
