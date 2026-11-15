@@ -1,4 +1,4 @@
-# onboarding-scripts
+# Onboarding-Scripts-Catalog
 
 Scripts de provisionamento de hosts (agentes de monitoramento, seguranca e
 baseline), versionados e testados. Sao a fonte do **Catalogo de Onboarding**:
@@ -16,7 +16,7 @@ da URL e entrega o script pronto para o host.
 ```
 tools/<slug>/tool.json  --+
 tools/<slug>/windows.ps1  +--> npm run build --> catalog.json --> tag vX.Y.Z --> n8n --> host
-tools/<slug>/linux.sh   --+        (CI valida tudo)             (release)
+tools/<slug>/linux.sh   --+        (CI valida tudo)             (release) --> GitHub Pages
 ```
 
 - **`tools/<slug>/`**: uma pasta por ferramenta, com `tool.json` (titulo,
@@ -24,25 +24,30 @@ tools/<slug>/linux.sh   --+        (CI valida tudo)             (release)
 - **`catalog.json`**: indice gerado, uma entrada por ferramenta + SO, com os
   parametros ja resolvidos e o SHA-256 de cada script. E o unico arquivo que
   o n8n precisa ler para montar a pagina e localizar um script.
+- **`web/index.html`**: template da pagina do catalogo. A cada release o
+  workflow `Pages` injeta o `catalog.json`, a tag e a URL do webhook (variavel
+  `ONBOARDING_BASE_URL` do repositorio, fora do codigo) e publica no GitHub Pages.
 - **`lib/render.js`**: o motor que valida a query string e monta o script
   entregue. E o mesmo codigo do no "Resolver parametros" do workflow.
 
 ## Usar
 
-Pelo catalogo (recomendado): abra a pagina do webhook de onboarding, copie o
-comando da ferramenta e troque os campos `<ASSIM>`.
+Pelo catalogo (recomendado): abra a pagina publicada no GitHub Pages,
+<https://juaopedr0.github.io/Onboarding-Scripts-Catalog/>, copie o comando da
+ferramenta e troque os campos `<ASSIM>`. Os comandos chamam o webhook de
+onboarding, que so responde na rede interna.
 
 Direto do repositorio, sem o webhook:
 
 ```powershell
 # Windows (como Administrador)
-$s = irm 'https://raw.githubusercontent.com/JuaoPedr0/onboarding-scripts/<TAG>/tools/wazuh/windows.ps1'
+$s = irm 'https://raw.githubusercontent.com/JuaoPedr0/Onboarding-Scripts-Catalog/<TAG>/tools/wazuh/windows.ps1'
 & ([ScriptBlock]::Create($s)) -Manager '<HOST_DO_MANAGER>' -AgentGroup 'Windows'
 ```
 
 ```bash
 # Linux
-curl -fsSL 'https://raw.githubusercontent.com/JuaoPedr0/onboarding-scripts/<TAG>/tools/wazuh/linux.sh' \
+curl -fsSL 'https://raw.githubusercontent.com/JuaoPedr0/Onboarding-Scripts-Catalog/<TAG>/tools/wazuh/linux.sh' \
   | sudo WAZUH_MANAGER='<HOST_DO_MANAGER>' WAZUH_AGENT_GROUPS_CSV='Linux' bash
 ```
 

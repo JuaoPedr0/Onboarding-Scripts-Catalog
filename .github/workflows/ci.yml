@@ -22,8 +22,12 @@ jobs:
       - run: npm ci
       - name: tool.json valido e catalog.json em dia
         run: npm run check
-      - name: Testes do motor de renderizacao
+      - name: Testes do motor de renderizacao e da pagina
         run: npm test
+      - name: Pagina do catalogo gera sem erro
+        env:
+          ONBOARDING_BASE_URL: https://onboarding.exemplo.local/webhook/onboarding
+        run: node scripts/build-site.js --strict
 
   bash:
     name: Bash (ShellCheck)
