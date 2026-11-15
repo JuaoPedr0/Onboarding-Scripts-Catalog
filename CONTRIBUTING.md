@@ -20,7 +20,11 @@ npm ci
    ```
    npm run -s render -- wazuh linux manager=wazuh.exemplo.local group=Linux | less
    ```
-4. Abra o pull request. O `catalog.json` regenerado vai no mesmo commit.
+4. Mudou a pagina (`web/index.html`)? Gere e abra no navegador:
+   ```
+   npm run site      # grava dist/site/index.html
+   ```
+5. Abra o pull request. O `catalog.json` regenerado vai no mesmo commit.
 
 ## Adicionar uma ferramenta
 
@@ -48,7 +52,9 @@ git tag v1.2.3 && git push origin v1.2.3
 ```
 
 A release so e criada se o CI passar e a tag estiver na `main`. A partir dai
-o webhook passa a servir essa versao. Para voltar atras, fixe a release
+o webhook passa a servir essa versao e a pagina do GitHub Pages e regerada.
+Para regerar so a pagina (ex.: mudou `ONBOARDING_BASE_URL`): Actions → Pages →
+Run workflow. Para voltar atras, fixe a release
 anterior no n8n ou publique uma nova tag corrigida.
 
 Versao: `MAJOR` quando um parametro e removido ou muda de significado,

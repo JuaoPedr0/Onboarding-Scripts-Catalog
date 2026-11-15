@@ -10,6 +10,10 @@ mudanca como mudanca de producao.
   `<PLACEHOLDER>`, `*.exemplo.local` ou a faixa de documentacao `192.0.2.0/24`.
 - Qualquer valor especifico do ambiente: ele chega por parametro na hora da execucao.
 
+A pagina do catalogo no GitHub Pages e publica. A URL do webhook entra nela
+so na hora do deploy, pela variavel `ONBOARDING_BASE_URL`; o webhook deve
+continuar acessivel apenas pela rede interna.
+
 O CI (`npm run check`) recusa IPs privados, dominios internos e formatos comuns de token.
 
 ## Cadeia de entrega

@@ -1,0 +1,74 @@
+name: Pages
+
+# Publica a pagina do catalogo no GitHub Pages a partir de uma release.
+# Roda sozinho depois de cada release (chamado pelo release.yml) e pode
+# ser disparado a mao em Actions → Pages → Run workflow, por exemplo
+# depois de mudar a variavel ONBOARDING_BASE_URL.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag a publicar (vazio = ultima release)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Resolver tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if [ -z "$TAG" ]; then
+            TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          fi
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "tag invalida: $TAG"; exit 1; }
+          PUBLICADO=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .published_at)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "publicado=$PUBLICADO" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Gerar pagina
+        env:
+          ONBOARDING_BASE_URL: ${{ vars.ONBOARDING_BASE_URL }}
+          SITE_TAG: ${{ steps.tag.outputs.tag }}
+          SITE_PUBLICADO: ${{ steps.tag.outputs.publicado }}
+        run: node scripts/build-site.js --strict
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

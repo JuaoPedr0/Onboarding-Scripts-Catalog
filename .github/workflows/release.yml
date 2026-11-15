@@ -1,7 +1,8 @@
 name: Release
 
 # Publicar uma tag vX.Y.Z e o que coloca os scripts em producao:
-# o n8n serve sempre a ultima release publicada.
+# o n8n serve sempre a ultima release publicada, e a pagina do
+# catalogo no GitHub Pages e regerada a partir dela.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
@@ -28,3 +29,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" catalog.json --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+
+  pages:
+    needs: release
+    uses: ./.github/workflows/pages.yml
+    with:
+      tag: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

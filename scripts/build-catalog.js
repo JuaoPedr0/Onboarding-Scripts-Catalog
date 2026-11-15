@@ -93,6 +93,12 @@ for (const dir of slugs) {
 JSON.stringify(slugs.map((s) => fs.readFileSync(path.join(TOOLS, s, 'tool.json'), 'utf8'))).split('\\n')
   .forEach((l) => PROIBIDO.forEach(([re, oque]) => { if (re.test(l)) err('tool.json', `${oque}: ${l.trim().slice(0, 60)}`); }));
 
+// A pagina do catalogo e publica: o mesmo filtro vale para web/.
+for (const f of fs.existsSync(path.join(ROOT, 'web')) ? fs.readdirSync(path.join(ROOT, 'web')) : []) {
+  fs.readFileSync(path.join(ROOT, 'web', f), 'utf8').split('\n')
+    .forEach((l, i) => PROIBIDO.forEach(([re, oque]) => { if (re.test(l)) err(`web/${f}:${i + 1}`, oque); }));
+}
+
 if (erros.length) {
   console.error(`${erros.length} problema(s):\n` + erros.map((e) => '  - ' + e).join('\n'));
   process.exit(1);
