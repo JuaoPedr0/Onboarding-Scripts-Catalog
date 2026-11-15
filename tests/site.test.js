@@ -5,11 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const { montarConfig, injetar } = require('../scripts/site-config');
 const { validar } = require('../lib/render');
+const { gerar } = require('../scripts/build-catalog');
 
 const ROOT = path.resolve(__dirname, '..');
 const BASE = 'https://onboarding.exemplo.local/webhook/onboarding';
 const template = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
-const catalogo = JSON.parse(fs.readFileSync(path.join(ROOT, 'catalog.json'), 'utf8'));
+const { catalogo } = gerar();
 const configDe = (html) => JSON.parse(html.match(/<script id="config" type="application\/json">([\s\S]*?)<\/script>/)[1]);
 
 test('config leva catalogo, tag, repositorio e URL do webhook para a pagina', () => {

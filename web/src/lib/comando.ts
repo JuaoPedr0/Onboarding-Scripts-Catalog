@@ -84,7 +84,8 @@ export interface Comando {
 
 export function montarComando(item: Item, base: string, valores: Valores): Comando {
   const campos = item.parametros.map((p) => avaliar(p, valores[p.nome]))
-  const url: Trecho[] = [{ texto: `${base}?script=${item.slug}&os=${item.os}`, tipo: 'url' }]
+  const variante = item.padrao ? '' : `&variante=${item.variante}`
+  const url: Trecho[] = [{ texto: `${base}?script=${item.slug}&os=${item.os}${variante}`, tipo: 'url' }]
 
   for (const c of campos) {
     const p = c.def

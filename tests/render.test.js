@@ -5,10 +5,11 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { render } = require('../lib/render');
+const { gerar } = require('../scripts/build-catalog');
 
 const ROOT = path.resolve(__dirname, '..');
-const catalogo = JSON.parse(fs.readFileSync(path.join(ROOT, 'catalog.json'), 'utf8'));
-const item = (slug, os) => catalogo.itens.find((i) => i.slug === slug && i.os === os);
+const { catalogo, erros } = gerar();
+const item = (slug, os) => catalogo.itens.find((i) => i.slug === slug && i.os === os && i.padrao);
 const corpoDe = (i) => fs.readFileSync(path.join(ROOT, i.arquivo), 'utf8');
 const bash = (script, args = []) => execFileSync('bash', ['-s', '--', ...args], { input: script, encoding: 'utf8' });
 
@@ -21,6 +22,15 @@ const ECO = {
   ],
 };
 const ecoSh = fs.readFileSync(path.join(__dirname, 'fixtures/eco.sh'), 'utf8');
+
+test('o repositorio gera um catalogo valido, com uma variante padrao por sistema', () => {
+  assert.deepStrictEqual(erros, []);
+  assert.ok(catalogo.itens.length > 0);
+  for (const i of catalogo.itens) {
+    const padroes = catalogo.itens.filter((x) => x.slug === i.slug && x.os === i.os && x.padrao);
+    assert.strictEqual(padroes.length, 1, `${i.slug}/${i.os}`);
+  }
+});
 
 test('todo item do catalogo renderiza sem parametros e mantem o corpo intacto', () => {
   for (const i of catalogo.itens) {

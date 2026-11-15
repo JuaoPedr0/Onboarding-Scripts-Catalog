@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { AppWindow, ChevronDown, ChevronsUpDown, ChevronUp, ExternalLink, History, RotateCcw, SquareTerminal } from 'lucide-react'
+import { AppWindow, ChevronDown, ChevronsUpDown, ChevronUp, ExternalLink, History, Pencil, RotateCcw, SquareTerminal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { montarComando, type Valor, type Valores } from '@/lib/comando'
 import { NOME_SISTEMA, SISTEMAS, type Config, type Ferramenta, type Sistema } from '@/lib/config'
 import { cn } from '@/lib/utils'
@@ -19,14 +20,18 @@ interface Props {
   config: Config
   ferramenta: Ferramenta
   os: Sistema
+  variante: string
   onOs: (os: Sistema) => void
+  onVariante: (id: string) => void
+  onEditar: () => void
   valores: Valores
   onValores: (v: Valores) => void
   onTrocar: () => void
 }
 
-export function PainelFerramenta({ config, ferramenta, os, onOs, valores, onValores, onTrocar }: Props) {
-  const item = ferramenta.itens[os]!
+export function PainelFerramenta({ config, ferramenta, os, variante, onOs, onVariante, onEditar, valores, onValores, onTrocar }: Props) {
+  const variantes = ferramenta.itens[os] ?? []
+  const item = variantes.find((v) => v.variante === variante) ?? variantes[0]
   const comando = useMemo(() => montarComando(item, config.base, valores), [item, config.base, valores])
   const { copiado, copiar } = useCopiar(comando, os)
 
@@ -63,7 +68,7 @@ export function PainelFerramenta({ config, ferramenta, os, onOs, valores, onValo
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
         <Tabs value={os} onValueChange={(v) => onOs(v as Sistema)}>
           <TabsList aria-label="Sistema operacional">
-            {SISTEMAS.filter((s) => ferramenta.itens[s]).map((s) => {
+            {SISTEMAS.filter((s) => ferramenta.itens[s]?.length).map((s) => {
               const Icone = ICONE_SO[s]
               return (
                 <TabsTrigger key={s} value={s} className="gap-1.5 px-3.5">
@@ -87,12 +92,29 @@ export function PainelFerramenta({ config, ferramenta, os, onOs, valores, onValo
               Histórico
             </a>
           </Button>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onEditar}>
+            <Pencil />
+            Editar
+          </Button>
         </div>
       </div>
 
+      {variantes.length > 1 && (
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-sm text-muted-foreground">Variante</span>
+          <ToggleGroup type="single" variant="outline" size="sm" value={item.variante} onValueChange={(v) => v && onVariante(v)} aria-label="Variante do sistema" className="flex-wrap">
+            {variantes.map((v) => (
+              <ToggleGroupItem key={v.variante} value={v.variante} className="px-3 data-[state=on]:bg-primary/15 data-[state=on]:text-primary">
+                {v.rotulo}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      )}
+
       <AnimatePresence initial={false} mode="wait">
         <motion.div
-          key={`${item.slug}/${item.os}`}
+          key={`${item.slug}/${item.os}/${item.variante}`}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}

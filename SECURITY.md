@@ -18,7 +18,7 @@ A pagina e compilada com dependencias de npm (React, Radix, Tailwind). Elas
 ficam travadas em `web/package-lock.json` e sao instaladas com `npm ci`;
 atualize-as por pull request, olhando o diff do lockfile.
 
-O CI (`npm run check`) recusa IPs privados, dominios internos e formatos comuns de token.
+O CI (`npm run build`) recusa IPs privados, dominios internos e formatos comuns de token.
 
 ## Cadeia de entrega
 
@@ -26,6 +26,13 @@ O CI (`npm run check`) recusa IPs privados, dominios internos e formatos comuns 
 2. So uma tag `vX.Y.Z` vira release, e so se a tag estiver na `main`.
 3. O servidor de onboarding serve a ultima release e confere o SHA-256 de
    cada script contra o `catalog.json` da mesma tag.
+
+## Envios pelo catalogo
+
+O editor da pagina envia para um webhook interno, que abre o pull request com
+uma conta-robo. O robo so escreve no proprio fork, e so dentro de
+`tools/<slug>/`; nao faz merge, nao cria tag e nao altera workflows. O CI de
+pull requests vindos de fork so roda depois da aprovacao do administrador.
 
 ## Reportar um problema
 
